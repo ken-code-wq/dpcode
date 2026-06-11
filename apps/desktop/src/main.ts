@@ -142,13 +142,13 @@ const BASE_DIR =
   process.env.SYNARA_HOME?.trim() ||
   process.env.DPCODE_HOME?.trim() ||
   process.env.T3CODE_HOME?.trim() ||
-  Path.join(OS.homedir(), ".synara");
+  Path.join(OS.homedir(), ".synara-dev");
 const STATE_DIR = Path.join(BASE_DIR, "userdata");
 const DESKTOP_SCHEME = "t3";
 const ROOT_DIR = Path.resolve(__dirname, "../../..");
 const isDevelopment = Boolean(process.env.VITE_DEV_SERVER_URL);
-const APP_DISPLAY_NAME = isDevelopment ? "Synara (Dev)" : "Synara";
-const APP_USER_MODEL_ID = isDevelopment ? "com.t3tools.synara.dev" : "com.t3tools.synara";
+const APP_DISPLAY_NAME = isDevelopment ? "Synara Dev (Dev)" : "Synara Dev";
+const APP_USER_MODEL_ID = isDevelopment ? "com.t3tools.synaradev.dev" : "com.t3tools.synaradev";
 const COMMIT_HASH_PATTERN = /^[0-9a-f]{7,40}$/i;
 const COMMIT_HASH_DISPLAY_LENGTH = 12;
 const LOG_DIR = Path.join(STATE_DIR, "logs");
@@ -183,7 +183,7 @@ const BROWSER_PERF_SAMPLE_INTERVAL_MS = 5_000;
 const DESKTOP_MENU_ZOOM_FACTOR_STEP = 1.1;
 const DESKTOP_MENU_MIN_ZOOM_FACTOR = 0.25;
 const DESKTOP_MENU_MAX_ZOOM_FACTOR = 5;
-const SYNARA_BROWSER_LABEL = "Synara browser";
+const SYNARA_BROWSER_LABEL = "Synara Dev browser";
 const browserPerfLoggingEnabled =
   process.env.SYNARA_BROWSER_PERF === "1" ||
   process.env.DPCODE_BROWSER_PERF === "1" ||
@@ -824,7 +824,7 @@ function handleFatalStartupError(stage: string, error: unknown): void {
   console.error(`[desktop] fatal startup error (${stage})`, error);
   if (!isQuitting) {
     isQuitting = true;
-    dialog.showErrorBox("Synara failed to start", `Stage: ${stage}\n${message}${detail}`);
+    dialog.showErrorBox("Synara Dev failed to start", `Stage: ${stage}\n${message}${detail}`);
   }
   stopBackend();
   restoreStdIoCapture?.();
@@ -969,14 +969,14 @@ async function checkForUpdatesFromMenu(): Promise<void> {
     void dialog.showMessageBox({
       type: "info",
       title: "You're up to date!",
-      message: `Synara ${updateState.currentVersion} is currently the newest version available.`,
+      message: `Synara Dev ${updateState.currentVersion} is currently the newest version available.`,
       buttons: ["OK"],
     });
   } else if (updateState.status === "downloading" || updateState.status === "available") {
     void dialog.showMessageBox({
       type: "info",
       title: "Update found",
-      message: "Synara is preparing the update in the background.",
+      message: "Synara Dev is preparing the update in the background.",
       buttons: ["OK"],
     });
   } else if (updateState.status === "downloaded") {
@@ -2386,7 +2386,7 @@ function registerIpcHandlers(): void {
   registerDesktopVoiceTranscriptionHandler();
   startBrowserPerformanceLogging();
   void ensureBrowserUsePipeServer().catch((error) => {
-    console.warn("[Synara browser] Failed to start browser-use native pipe", error);
+    console.warn("[Synara Dev browser] Failed to start browser-use native pipe", error);
   });
 
   registerBrowserIpcHandlers(ipcMain, browserManager);

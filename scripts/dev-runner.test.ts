@@ -46,7 +46,7 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
   });
 
   describe("createDevRunnerEnv", () => {
-    it.effect("defaults SYNARA_HOME to ~/.synara when not provided", () =>
+    it.effect("defaults SYNARA_HOME to ~/.synara-dev when not provided", () =>
       Effect.gen(function* () {
         const env = yield* createDevRunnerEnv({
           mode: "dev",
@@ -63,8 +63,8 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
           devUrl: undefined,
         });
 
-        assert.equal(env.SYNARA_HOME, resolve(homedir(), ".synara"));
-        assert.equal(env.T3CODE_HOME, resolve(homedir(), ".synara"));
+        assert.equal(env.SYNARA_HOME, resolve(homedir(), ".synara-dev"));
+        assert.equal(env.T3CODE_HOME, resolve(homedir(), ".synara-dev"));
       }),
     );
 
