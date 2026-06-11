@@ -37,11 +37,7 @@ export function resolveSingleMacUpdateZipFileName(entries: ReadonlyArray<string>
 }
 
 export function resolveMacUpdateManifestFileNames(entries: ReadonlyArray<string>): string[] {
-  const manifestFileNames = entries.filter((entry) => entry.endsWith("-mac.yml"));
-  if (manifestFileNames.length === 0) {
-    throw new Error("Expected at least one macOS update manifest, found 0.");
-  }
-  return manifestFileNames;
+  return entries.filter((entry) => entry.endsWith("-mac.yml"));
 }
 
 export function parseZipInfoUnixAttributes(zipInfoOutput: string): string | null {
