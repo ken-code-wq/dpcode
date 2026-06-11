@@ -2,11 +2,13 @@ import type {
   ProjectEntry,
   ProjectListDirectoriesResult,
   ProjectReadFileResult,
+  ProjectWriteFileInput,
+  ProjectWriteFileResult,
   ProjectDiscoverScriptsResult,
   ProjectSearchEntriesResult,
   ProjectSearchLocalEntriesResult,
 } from "@t3tools/contracts";
-import { queryOptions, type QueryClient } from "@tanstack/react-query";
+import { queryOptions, useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { ensureNativeApi } from "~/nativeApi";
 
 export const projectQueryKeys = {
@@ -195,5 +197,20 @@ export function projectSearchLocalEntriesQueryOptions(input: {
     enabled: (input.enabled ?? true) && input.rootPath !== null && trimmedQuery.length >= 2,
     staleTime: input.staleTime ?? DEFAULT_SEARCH_LOCAL_ENTRIES_STALE_TIME,
     placeholderData: (previous) => previous ?? EMPTY_SEARCH_LOCAL_ENTRIES_RESULT,
+  });
+}
+
+export function useProjectWriteFile() {
+  const queryClient = useQueryClient();
+  return useMutation<ProjectWriteFileResult, Error, ProjectWriteFileInput>({
+    mutationFn: async (input) => {
+      const api = ensureNativeApi();
+      return api.projects.writeFile(input);
+    },
+    onSuccess: (_result, variables) => {
+      void queryClient.invalidateQueries({
+        queryKey: projectQueryKeys.readFile(variables.cwd, variables.relativePath),
+      });
+    },
   });
 }

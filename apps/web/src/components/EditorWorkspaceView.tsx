@@ -92,6 +92,8 @@ import { PanelStateMessage } from "./chat/PanelStateMessage";
 import { TranscriptSelectionAction } from "./chat/TranscriptSelectionAction";
 import { useCodeSelectionAction } from "./chat/useCodeSelectionAction";
 import { LocalImagePreview } from "./LocalImagePreview";
+import { MonacoFileEditor } from "./MonacoFileEditor";
+import { PencilIcon } from "~/lib/icons";
 import { ProjectMenuPicker, type ProjectMenuPickerOption } from "./ProjectMenuPicker";
 import { SearchInput } from "./ui/search-input";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
@@ -1147,6 +1149,10 @@ function FilePreview(props: {
   const selectedFileIsMarkdown =
     selectedFilePath !== null && isMarkdownPreviewablePath(selectedFilePath);
   const [markdownPreviewEnabled, setMarkdownPreviewEnabled] = useState(false);
+  const [editing, setEditing] = useState(false);
+  useEffect(() => {
+    setEditing(false);
+  }, [selectedFilePath]);
   const fileQuery = useQuery(
     projectReadFileQueryOptions({
       cwd: props.workspaceRoot,
@@ -1221,6 +1227,29 @@ function FilePreview(props: {
     );
   }
 
+  if (editing && !selectedFileIsImage && !selectedFileIsMarkdown) {
+    return (
+      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-[var(--color-background-surface)]">
+        {fileQuery.isLoading ? (
+          <FilePreviewLoadingState />
+        ) : fileQuery.error ? (
+          <PanelStateMessage density="compact" fill="flex" className="items-start justify-start p-3">
+            <p className="text-left text-[11px] text-destructive/85">
+              {fileQuery.error instanceof Error ? fileQuery.error.message : "Could not read file."}
+            </p>
+          </PanelStateMessage>
+        ) : (
+          <MonacoFileEditor
+            filePath={props.selectedFilePath}
+            contents={fileContents}
+            workspaceRoot={props.workspaceRoot}
+            onClose={() => setEditing(false)}
+          />
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-[var(--color-background-surface)]">
       <div
@@ -1259,6 +1288,16 @@ function FilePreview(props: {
             ) : (
               <EyeIcon className="size-3.5" aria-hidden="true" />
             )}
+          </ChatHeaderIconButton>
+        ) : null}
+        {!selectedFileIsImage && !selectedFileIsMarkdown ? (
+          <ChatHeaderIconButton
+            type="button"
+            label="Edit file"
+            title="Edit file"
+            onClick={() => setEditing(true)}
+          >
+            <PencilIcon className="size-3.5" />
           </ChatHeaderIconButton>
         ) : null}
       </div>

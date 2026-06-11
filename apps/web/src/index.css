@@ -83,7 +83,6 @@
     /* Rounded-corner radius of the chat card's seam side. Defined once here so the card
        radius, the seam ring clip-path, the right-side border-radius, and the backing
        strip width stay in lockstep. (All call sites still carry a 0.75rem fallback.) */
-    --app-content-card-radius: 0.9rem;
   }
 }
 
@@ -167,10 +166,10 @@
        macOS window's rounded corner. Driven by opacity (not display) + a transition so
        the wedge fades in step with the slide — at rest collapsed it is opacity:0, so it
        still never paints over the window corner. */
-    display: block;
+    display: none; /* Removed backing wedge because corner is no longer rounded */
     opacity: 0;
     transition: opacity 300ms cubic-bezier(0.32, 0.72, 0, 1);
-    width: var(--app-content-card-radius, 0.75rem);
+    width: 0;
     pointer-events: none;
     background-color: var(--app-sidebar-surface, var(--card));
     backdrop-filter: var(--app-sidebar-backdrop-filter, none);
@@ -227,8 +226,7 @@
 
   [data-sidebar-side="left"] .chat-content-card {
     --seam-shadow-x: -6.5px;
-    border-radius: var(--app-content-card-radius, 0.75rem) 0 0
-      var(--app-content-card-radius, 0.75rem);
+    border-radius: 0;
   }
 
   .chat-content-card::before {
@@ -247,7 +245,7 @@
   /* Keep only the seam-side radius strip: the vertical edge + both curves on that
      side, clipping away the straight top/bottom strokes and the opposite edge. */
   [data-sidebar-side="left"] .chat-content-card::before {
-    clip-path: inset(0 calc(100% - var(--app-content-card-radius, 0.75rem)) 0 0);
+    clip-path: inset(0 calc(100% - 1px) 0 0);
   }
 
   [data-sidebar-side="left"]:has([data-placement="content-seam"]:hover) .chat-content-card {
@@ -1064,6 +1062,32 @@ label:has(> select#reasoning-effort) select {
 
 .editor-file-viewer--markdown-preview {
   background: color-mix(in srgb, var(--background) 96%, var(--card));
+}
+
+.monaco-file-editor .monaco-editor,
+.monaco-file-editor .monaco-editor-background,
+.monaco-file-editor .monaco-editor .margin {
+  background: var(--color-background-surface) !important;
+}
+
+.monaco-file-editor .monaco-editor .margin {
+  border-right: 0 !important;
+}
+
+.monaco-file-editor .monaco-editor .line-numbers {
+  color: color-mix(in srgb, var(--foreground) 30%, transparent) !important;
+  font-family: var(--font-chat-code-family) !important;
+  font-size: var(--app-font-size-chat-code, 12px) !important;
+}
+
+.monaco-file-editor .monaco-editor .current-line,
+.monaco-file-editor .monaco-editor .current-line-margin {
+  border: 0 !important;
+  background: transparent !important;
+}
+
+.monaco-file-editor .monaco-editor .view-overlays .cdr {
+  display: none !important;
 }
 
 .editor-markdown-preview {
