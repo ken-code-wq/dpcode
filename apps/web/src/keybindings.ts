@@ -670,6 +670,14 @@ export function isChatNewGeminiShortcut(
   return matchesCommandShortcut(event, keybindings, "chat.newGemini", options);
 }
 
+export function isChatSplitShortcut(
+  event: ShortcutEventLike,
+  keybindings: ResolvedKeybindingsConfig,
+  options?: ShortcutMatchOptions,
+): boolean {
+  return matchesCommandShortcut(event, keybindings, "chat.split", options);
+}
+
 export function isOpenFavoriteEditorShortcut(
   event: ShortcutEventLike,
   keybindings: ResolvedKeybindingsConfig,

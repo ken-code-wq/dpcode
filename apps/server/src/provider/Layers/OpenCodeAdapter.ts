@@ -110,6 +110,10 @@ const KILO_ADAPTER_CONFIG: OpenCodeCompatibleAdapterConfig = {
 const OPENCODE_PROMPT_ACCEPTED_ACTIVITY_TIMEOUT_MS = 60_000;
 const OPENCODE_PROMPT_ACCEPTED_RECOVERY_DELAYS_MS = [2_000, 5_000, 10_000, 20_000] as const;
 const OPENCODE_PROMPT_SUBMISSION_INLINE_WAIT_MS = 500;
+// A dropped SSE subscription must not silently kill a live session. Re-subscribe
+// with bounded backoff before declaring the session dead; a stream that delivered
+// events resets the budget so long-lived sessions absorb repeated transient drops.
+const OPENCODE_EVENT_STREAM_RECONNECT_DELAYS_MS = [250, 500, 1_000, 2_000, 4_000] as const;
 
 type OpenCodeSubscribedEvent =
   Awaited<ReturnType<OpencodeClient["event"]["subscribe"]>> extends {
@@ -3460,39 +3464,69 @@ export function makeOpenCodeAdapterLive(options?: OpenCodeAdapterLiveOptions) {
           Effect.sync(() => eventsAbortController.abort()),
         );
 
-        yield* Effect.flatMap(
-          runOpenCodeSdk("event.subscribe", () =>
-            context.client.event.subscribe(undefined, {
-              signal: eventsAbortController.signal,
-            }),
-          ),
-          (subscription) =>
-            Stream.fromAsyncIterable(
-              subscription.stream,
-              (cause) =>
-                new OpenCodeRuntimeError({
-                  operation: "event.subscribe",
-                  detail: openCodeRuntimeErrorDetail(cause),
-                  cause,
-                }),
-            ).pipe(Stream.runForEach((event) => handleSubscribedEvent(context, event))),
-        ).pipe(
-          Effect.exit,
-          Effect.flatMap((exit) =>
-            Effect.gen(function* () {
-              if (eventsAbortController.signal.aborted || (yield* Ref.get(context.stopped))) {
-                return;
-              }
-              if (Exit.isFailure(exit)) {
-                yield* emitUnexpectedExit(
-                  context,
-                  openCodeRuntimeErrorDetail(Cause.squash(exit.cause)),
-                );
-              }
-            }),
-          ),
-          Effect.forkIn(context.sessionScope),
-        );
+        const consumeEventStream = Effect.gen(function* () {
+          let reconnectAttempt = 0;
+          while (true) {
+            if (eventsAbortController.signal.aborted || (yield* Ref.get(context.stopped))) {
+              return;
+            }
+
+            let sawEvent = false;
+            const streamExit = yield* runOpenCodeSdk("event.subscribe", () =>
+              context.client.event.subscribe(undefined, {
+                signal: eventsAbortController.signal,
+              }),
+            ).pipe(
+              Effect.flatMap((subscription) =>
+                Stream.fromAsyncIterable(
+                  subscription.stream,
+                  (cause) =>
+                    new OpenCodeRuntimeError({
+                      operation: "event.subscribe",
+                      detail: openCodeRuntimeErrorDetail(cause),
+                      cause,
+                    }),
+                ).pipe(
+                  Stream.runForEach((event) =>
+                    Effect.gen(function* () {
+                      sawEvent = true;
+                      yield* handleSubscribedEvent(context, event);
+                    }),
+                  ),
+                ),
+              ),
+              Effect.exit,
+            );
+
+            if (eventsAbortController.signal.aborted || (yield* Ref.get(context.stopped))) {
+              return;
+            }
+
+            if (sawEvent) {
+              reconnectAttempt = 0;
+            }
+
+            if (reconnectAttempt >= OPENCODE_EVENT_STREAM_RECONNECT_DELAYS_MS.length) {
+              yield* emitUnexpectedExit(
+                context,
+                Exit.isFailure(streamExit)
+                  ? openCodeRuntimeErrorDetail(Cause.squash(streamExit.cause))
+                  : `${adapterConfig.displayName} event stream closed unexpectedly.`,
+              );
+              return;
+            }
+
+            const delayMs = OPENCODE_EVENT_STREAM_RECONNECT_DELAYS_MS[reconnectAttempt]!;
+            reconnectAttempt += 1;
+            yield* Effect.logDebug(
+              `${adapterConfig.displayName} event stream disconnected, reconnecting`,
+              { attempt: reconnectAttempt, delayMs },
+            );
+            yield* Effect.sleep(delayMs);
+          }
+        });
+
+        yield* consumeEventStream.pipe(Effect.forkIn(context.sessionScope));
 
         if (!context.server.external && context.server.exitCode !== null) {
           yield* context.server.exitCode.pipe(

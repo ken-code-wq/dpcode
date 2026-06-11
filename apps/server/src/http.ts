@@ -358,14 +358,12 @@ const projectFaviconEffectRouteLayer = HttpRouter.add(
   "GET",
   "/api/project-favicon",
   Effect.gen(function* () {
-    yield* requireAuthenticatedRequest.pipe(
-      Effect.catchTag("AuthError", (error) => Effect.fail(error)),
-    );
     const request = yield* HttpServerRequest.HttpServerRequest;
     const url = HttpServerRequest.toURL(request);
     if (!url) return HttpServerResponse.text("Bad Request", { status: 400 });
     const projectCwd = url.searchParams.get("cwd");
     if (!projectCwd) return HttpServerResponse.text("Missing cwd parameter", { status: 400 });
+    const fileSystem = yield* FileSystem.FileSystem;
     const resolver = yield* ProjectFaviconResolver;
     const faviconPath = yield* resolver.resolvePath(projectCwd);
     if (!faviconPath) {
@@ -377,15 +375,18 @@ const projectFaviconEffectRouteLayer = HttpRouter.add(
         headers: { "Cache-Control": PROJECT_FAVICON_CACHE_CONTROL },
       });
     }
-    return yield* HttpServerResponse.file(faviconPath, {
+    const data = yield* fileSystem
+      .readFile(faviconPath)
+      .pipe(Effect.catch(() => Effect.succeed(null)));
+    if (!data) {
+      return HttpServerResponse.text("Not Found", { status: 404 });
+    }
+    return HttpServerResponse.uint8Array(data, {
       status: 200,
+      contentType: Mime.getType(faviconPath) ?? "application/octet-stream",
       headers: { "Cache-Control": PROJECT_FAVICON_CACHE_CONTROL },
-    }).pipe(
-      Effect.catch(() =>
-        Effect.succeed(HttpServerResponse.text("Internal Server Error", { status: 500 })),
-      ),
-    );
-  }).pipe(Effect.catchTag("AuthError", (error) => Effect.succeed(authErrorResponse(error)))),
+    });
+  }),
 );
 
 // Resolves a real website favicon by domain (cached server-side, deduped by host)

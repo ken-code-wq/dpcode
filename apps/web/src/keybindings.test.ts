@@ -11,6 +11,7 @@ import {
   isBrowserToggleShortcut,
   isChatNewShortcut,
   isChatNewChatShortcut,
+  isChatSplitShortcut,
   isDiffToggleShortcut,
   isOpenFavoriteEditorShortcut,
   isSidebarToggleShortcut,
@@ -845,6 +846,26 @@ describe("chat/editor shortcuts", () => {
         context: { terminalFocus: false },
       }),
       "chat.newTerminal",
+    );
+  });
+
+  it("matches chat.split shortcut", () => {
+    assert.isTrue(
+      isChatSplitShortcut(event({ key: "\\", metaKey: true }), DEFAULT_BINDINGS, {
+        platform: "MacIntel",
+        context: { terminalFocus: false },
+      }),
+    );
+    assert.isTrue(
+      isChatSplitShortcut(event({ key: "\\", ctrlKey: true }), DEFAULT_BINDINGS, {
+        platform: "Linux",
+      }),
+    );
+    assert.isFalse(
+      isChatSplitShortcut(event({ key: "\\", metaKey: true }), DEFAULT_BINDINGS, {
+        platform: "MacIntel",
+        context: { terminalFocus: true },
+      }),
     );
   });
 

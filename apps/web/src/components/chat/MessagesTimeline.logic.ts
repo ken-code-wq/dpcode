@@ -66,6 +66,119 @@ export interface StableMessagesTimelineRowsState {
   result: MessagesTimelineRow[];
 }
 
+// Classifies a single work entry into one of the timeline activity lanes used to
+// recreate the Codex-style transcript: collapsed reasoning, edited files, an
+// "Exploring" context-gathering group, and rich passthrough rows (subagents,
+// commands) that keep their bespoke rendering.
+export type ActivityEntryKind = "thought" | "edited" | "exploration" | "passthrough";
+
+export function classifyActivityEntry(entry: WorkLogEntry): ActivityEntryKind {
+  if (entry.tone === "thinking") return "thought";
+  if (entry.requestKind === "file-change" || entry.itemType === "file_change") return "edited";
+  if (
+    entry.itemType === "collab_agent_tool_call" ||
+    entry.itemType === "command_execution" ||
+    entry.requestKind === "command" ||
+    Boolean(entry.command) ||
+    Boolean(entry.rawCommand)
+  ) {
+    return "passthrough";
+  }
+  return "exploration";
+}
+
+export type ActivitySegment =
+  | { kind: "thought"; id: string; entries: WorkLogEntry[] }
+  | { kind: "edited"; id: string; entries: WorkLogEntry[] }
+  | { kind: "exploration"; id: string; entries: WorkLogEntry[] }
+  | { kind: "passthrough"; id: string; entry: WorkLogEntry };
+
+// Walks entries in chronological order and merges adjacent same-lane entries so a
+// burst of reads/searches collapses into one "Exploring" group while subagent and
+// command rows stay individually addressable.
+export function segmentActivityEntries(entries: ReadonlyArray<WorkLogEntry>): ActivitySegment[] {
+  const segments: ActivitySegment[] = [];
+  for (const entry of entries) {
+    const kind = classifyActivityEntry(entry);
+    if (kind === "passthrough") {
+      segments.push({ kind, id: entry.id, entry });
+      continue;
+    }
+    const last = segments.at(-1);
+    if (last && last.kind === kind) {
+      last.entries.push(entry);
+      continue;
+    }
+    segments.push({ kind, id: entry.id, entries: [entry] });
+  }
+  return segments;
+}
+
+export interface ExplorationSummary {
+  files: number;
+  folders: number;
+  searches: number;
+  artifacts: number;
+}
+
+// Treats a read target as a folder when its display label carries no file
+// extension; everything else with a path counts as a file.
+function explorationTargetIsFolder(label: string): boolean {
+  const trimmed = label.trim();
+  if (trimmed.length === 0) return false;
+  if (trimmed.endsWith("/")) return true;
+  const lastSegment = trimmed.split(/[\\/]/).pop() ?? trimmed;
+  return !lastSegment.includes(".");
+}
+
+// Counts an exploration segment into the four headline categories. The caller
+// supplies a resolved display label per entry so folder detection reuses the same
+// basename logic the rows render.
+export function summarizeExploration(
+  entries: ReadonlyArray<{ entry: WorkLogEntry; label: string }>,
+): ExplorationSummary {
+  const summary: ExplorationSummary = { files: 0, folders: 0, searches: 0, artifacts: 0 };
+  for (const { entry, label } of entries) {
+    if (entry.itemType === "web_search") {
+      summary.searches += 1;
+      continue;
+    }
+    if (
+      entry.itemType === "image_generation" ||
+      entry.itemType === "image_view" ||
+      entry.itemType === "mcp_tool_call" ||
+      entry.itemType === "dynamic_tool_call"
+    ) {
+      summary.artifacts += 1;
+      continue;
+    }
+    if (explorationTargetIsFolder(label)) {
+      summary.folders += 1;
+    } else {
+      summary.files += 1;
+    }
+  }
+  return summary;
+}
+
+function pluralize(count: number, noun: string): string {
+  return `${count} ${noun}${count === 1 ? "" : "s"}`;
+}
+
+// Renders "5 files, 2 folders, 1 artifact, 2 searches", dropping empty categories.
+// Falls back to a generic item count when nothing was categorized.
+export function formatExplorationSummary(summary: ExplorationSummary): string {
+  const parts: string[] = [];
+  if (summary.files > 0) parts.push(pluralize(summary.files, "file"));
+  if (summary.folders > 0) parts.push(pluralize(summary.folders, "folder"));
+  if (summary.artifacts > 0) parts.push(pluralize(summary.artifacts, "artifact"));
+  if (summary.searches > 0) {
+    parts.push(`${summary.searches} ${summary.searches === 1 ? "search" : "searches"}`);
+  }
+  if (parts.length === 0) return "context";
+  return parts.join(", ");
+}
+
 export function computeMessageDurationStart(
   messages: ReadonlyArray<TimelineDurationMessage>,
 ): Map<string, string> {

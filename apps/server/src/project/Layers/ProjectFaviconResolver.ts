@@ -6,17 +6,25 @@ import {
 } from "../Services/ProjectFaviconResolver";
 
 const FAVICON_CANDIDATES = [
-  "favicon.svg",
   "favicon.ico",
+  "favicon.svg",
   "favicon.png",
-  "public/favicon.svg",
   "public/favicon.ico",
+  "public/favicon.svg",
   "public/favicon.png",
+  "public/vite.svg",
+  "public/logo192.png",
+  "public/logo512.png",
   "app/favicon.ico",
-  "app/favicon.png",
   "app/icon.svg",
   "app/icon.png",
+  "app/favicon.png",
   "app/icon.ico",
+  "static/favicon.ico",
+  "static/favicon.png",
+  "static/favicon.svg",
+  "static/logo.svg",
+  "static/logo.png",
   "src/favicon.ico",
   "src/favicon.svg",
   "src/app/favicon.ico",
@@ -31,17 +39,23 @@ const FAVICON_CANDIDATES = [
 const ICON_SOURCE_FILES = [
   "index.html",
   "public/index.html",
-  "app/routes/__root.tsx",
-  "src/routes/__root.tsx",
+  "src/index.html",
+  "app.html",
+  "src/app.html",
   "app/root.tsx",
   "src/root.tsx",
-  "src/index.html",
+  "app/routes/__root.tsx",
+  "src/routes/__root.tsx",
+  "src/app/root.tsx",
 ] as const;
 
 const LINK_ICON_HTML_RE =
-  /<link\b(?=[^>]*\brel=["'](?:icon|shortcut icon)["'])(?=[^>]*\bhref=["']([^"'?]+))[^>]*>/i;
+  /<link\b(?=[^>]*\brel=["'](?:icon|shortcut icon|apple-touch-icon)["'])(?=[^>]*\bhref=["']([^"'?]+))[^>]*>/i;
 const LINK_ICON_OBJ_RE =
-  /(?=[^}]*\brel\s*:\s*["'](?:icon|shortcut icon)["'])(?=[^}]*\bhref\s*:\s*["']([^"'?]+))[^}]*/i;
+  /(?=[^}]*\brel\s*:\s*["'](?:icon|shortcut icon|apple-touch-icon)["'])(?=[^}]*\bhref\s*:\s*["']([^"'?]+))[^}]*/i;
+const OG_IMAGE_RE =
+  /<meta\b(?=[^>]*\bproperty=["']og:image["'])(?=[^>]*\bcontent=["']([^"'?]+))[^>]*>/i;
+const MANIFEST_ICON_RE = /"icons"\s*:\s*\[([^\]]+)\]/s;
 
 function extractIconHref(source: string): string | null {
   const htmlMatch = source.match(LINK_ICON_HTML_RE);
@@ -49,6 +63,23 @@ function extractIconHref(source: string): string | null {
   const objMatch = source.match(LINK_ICON_OBJ_RE);
   if (objMatch?.[1]) return objMatch[1];
   return null;
+}
+
+function extractOgImage(source: string): string | null {
+  const match = source.match(OG_IMAGE_RE);
+  return match?.[1] ?? null;
+}
+
+function extractManifestIcons(source: string): string[] {
+  const block = source.match(MANIFEST_ICON_RE);
+  if (!block || !block[1]) return [];
+  const hrefs: string[] = [];
+  const itemRe = /"src"\s*:\s*"([^"]+)"/g;
+  let m: RegExpExecArray | null;
+  while ((m = itemRe.exec(block[1])) !== null) {
+    if (m[1]) hrefs.push(m[1]);
+  }
+  return hrefs;
 }
 
 export const makeProjectFaviconResolver = Effect.gen(function* () {
@@ -100,12 +131,42 @@ export const makeProjectFaviconResolver = Effect.gen(function* () {
         continue;
       }
       const href = extractIconHref(source);
-      if (!href) {
+      if (href) {
+        const existing = yield* findExistingFile(cwd, resolveIconHref(cwd, href));
+        if (existing) {
+          return existing;
+        }
+      }
+    }
+
+    for (const sourceFile of ICON_SOURCE_FILES) {
+      const sourcePath = path.join(cwd, sourceFile);
+      const source = yield* fileSystem
+        .readFileString(sourcePath)
+        .pipe(Effect.catch(() => Effect.succeed(null)));
+      if (!source) {
         continue;
       }
-      const existing = yield* findExistingFile(cwd, resolveIconHref(cwd, href));
-      if (existing) {
-        return existing;
+      const ogImage = extractOgImage(source);
+      if (ogImage) {
+        const existing = yield* findExistingFile(cwd, resolveIconHref(cwd, ogImage));
+        if (existing) {
+          return existing;
+        }
+      }
+    }
+
+    const manifestPath = path.join(cwd, "manifest.json");
+    const manifest = yield* fileSystem
+      .readFileString(manifestPath)
+      .pipe(Effect.catch(() => Effect.succeed(null)));
+    if (manifest) {
+      const iconHrefs = extractManifestIcons(manifest);
+      for (const href of iconHrefs) {
+        const existing = yield* findExistingFile(cwd, resolveIconHref(cwd, href));
+        if (existing) {
+          return existing;
+        }
       }
     }
 
