@@ -88,28 +88,28 @@ function generateIco(sourcePng: string, targetIco: string) {
 }
 
 async function main() {
-  const haloPng = join(RESOURCES_DIR, "halo.png");
-  const haloNightlyPng = join(RESOURCES_DIR, "halo-nightly.png");
+  const tydePng = join(RESOURCES_DIR, "tyde-icon.png");
+  const tydeNightlyPng = join(RESOURCES_DIR, "tyde-icon-nightly.png");
 
-  if (!existsSync(haloPng)) {
-    console.error(`Source standard logo does not exist at: ${haloPng}`);
+  if (!existsSync(tydePng)) {
+    console.error(`Source standard logo does not exist at: ${tydePng}`);
     process.exit(1);
   }
-  if (!existsSync(haloNightlyPng)) {
-    console.error(`Source nightly logo does not exist at: ${haloNightlyPng}`);
+  if (!existsSync(tydeNightlyPng)) {
+    console.error(`Source nightly logo does not exist at: ${tydeNightlyPng}`);
     process.exit(1);
   }
 
   // 1. Standard logo -> icon.icns, icon.ico, icon.png
   console.log("Compiling standard app icon assets...");
-  generateIcns(haloPng, join(RESOURCES_DIR, "icon.icns"));
-  generateIco(haloPng, join(RESOURCES_DIR, "icon.ico"));
-  resizePng(haloPng, join(RESOURCES_DIR, "icon.png"), 1024);
+  generateIcns(tydePng, join(RESOURCES_DIR, "icon.icns"));
+  generateIco(tydePng, join(RESOURCES_DIR, "icon.ico"));
+  resizePng(tydePng, join(RESOURCES_DIR, "icon.png"), 1024);
 
   // 2. Nightly logo -> icon-legacy.icns, icon-legacy.png
   console.log("Compiling nightly app icon assets...");
-  generateIcns(haloNightlyPng, join(RESOURCES_DIR, "icon-legacy.icns"));
-  resizePng(haloNightlyPng, join(RESOURCES_DIR, "icon-legacy.png"), 1024);
+  generateIcns(tydeNightlyPng, join(RESOURCES_DIR, "icon-legacy.icns"));
+  resizePng(tydeNightlyPng, join(RESOURCES_DIR, "icon-legacy.png"), 1024);
 
   console.log("Icon compilation complete!");
 }
