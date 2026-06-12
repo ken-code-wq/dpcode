@@ -675,12 +675,16 @@ export function buildThemeCssVariables(
   // material. Windows/Linux have no equivalent, so a translucent shell there
   // leaves the transparent body and backdrop-filter surfaces bleeding through
   // and (on fractional DPI) rendering blurry. Restrict translucency to macOS.
+  const isMacElectron = options?.electron === true && options?.isMac === true;
+  const userForcedTranslucency = options?.fullWindowTranslucency === true && isMacElectron;
+  // When the user explicitly enables full-window translucency, force the
+  // translucent material on macOS regardless of the theme's opaqueWindows
+  // setting — the user's choice takes precedence over the theme pack.
   const material: WindowMaterial =
-    options?.electron === true && options?.isMac === true && !pack.theme.opaqueWindows
+    isMacElectron && (userForcedTranslucency || !pack.theme.opaqueWindows)
       ? "translucent"
       : "opaque";
-  const fullWindowTranslucencyActive =
-    options?.fullWindowTranslucency === true && material === "translucent";
+  const fullWindowTranslucencyActive = userForcedTranslucency && material === "translucent";
   const resolvedTokens = buildResolvedThemeTokens(pack, variant, fullWindowTranslucencyActive);
   const codexVariables = resolvedTokens.codexVariables;
   const readCodexVariable = (name: string) => getRequiredVariable(codexVariables, name);
