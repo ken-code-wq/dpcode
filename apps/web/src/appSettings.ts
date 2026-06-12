@@ -193,6 +193,7 @@ export const AppSettingsSchema = Schema.Struct({
   fullWindowTranslucency: Schema.Boolean.pipe(withDefaults(() => false)),
   sidebarTranslucency: Schema.Number.pipe(withDefaults(() => DEFAULT_SIDEBAR_TRANSLUCENCY)),
   mainWindowTranslucency: Schema.Number.pipe(withDefaults(() => DEFAULT_MAIN_WINDOW_TRANSLUCENCY)),
+  appIconVariant: Schema.Literals(["default", "nightly"]).pipe(withDefaults(() => "default" as const)),
   enableSystemTaskCompletionNotifications: Schema.Boolean.pipe(withDefaults(() => true)),
   sidebarProjectSortOrder: SidebarProjectSortOrder.pipe(
     withDefaults(() => DEFAULT_SIDEBAR_PROJECT_SORT_ORDER),

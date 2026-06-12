@@ -1855,6 +1855,35 @@ function SettingsRouteView() {
 
         <SettingsCard>
           <SettingsRow
+            title="App icon"
+            description="Switch between the standard and nightly app icon variant."
+            control={
+              <div className="flex gap-2">
+                {(["default", "nightly"] as const).map((iconVariant) => (
+                  <button
+                    key={iconVariant}
+                    type="button"
+                    onClick={() => updateSettings({ appIconVariant: iconVariant })}
+                    className={`flex size-12 items-center justify-center rounded-xl border-2 transition-all ${
+                      settings.appIconVariant === iconVariant
+                        ? "border-primary ring-2 ring-primary/20"
+                        : "border-border hover:border-muted-foreground/40"
+                    }`}
+                  >
+                    <img
+                      src={iconVariant === "default" ? "/tyde-icon.png" : "/tyde-icon-nightly.png"}
+                      alt={`${iconVariant} icon`}
+                      className="size-10 rounded-[18%] object-contain"
+                    />
+                  </button>
+                ))}
+              </div>
+            }
+          />
+        </SettingsCard>
+
+        <SettingsCard>
+          <SettingsRow
             title="UI density"
             description="Control spacing in the sidebar, composer, chat gutters, and settings rows without changing font size."
             resetAction={
