@@ -55,6 +55,7 @@ import {
   ZapIcon,
 } from "~/lib/icons";
 import { Button } from "../ui/button";
+import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 import { buildExpandedImagePreview, ExpandedImagePreview } from "./ExpandedImagePreview";
 import { ProposedPlanCard } from "./ProposedPlanCard";
 import { ChangedFilesTree } from "./ChangedFilesTree";
@@ -2047,6 +2048,9 @@ function isFileReadToolEntry(workEntry: TimelineWorkEntry): boolean {
 }
 
 function workEntryIcon(workEntry: TimelineWorkEntry): LucideIcon {
+  if (workEntry.activityKind === "runtime.warning" || workEntry.activityKind === "runtime.error") {
+    return CircleAlertIcon;
+  }
   if (workEntry.requestKind === "command") return TerminalIcon;
   if (workEntry.requestKind === "file-read") return EyeIcon;
   if (workEntry.requestKind === "file-change") return SquarePenIcon;
@@ -2270,6 +2274,41 @@ const SimpleWorkEntryRow = memo(function SimpleWorkEntryRow(props: {
 
   // Use the text font size (matching the UI settings) for tool call rows
   const rowFontSizePx = textFontSizePx;
+
+  const isRuntimeWarning = workEntry.activityKind === "runtime.warning";
+  const isRuntimeError = workEntry.activityKind === "runtime.error";
+
+  if (isRuntimeWarning || isRuntimeError) {
+    return (
+      <div className={cn(compact ? "py-0.5" : "rounded-lg py-1")}>
+        <Alert
+          variant={isRuntimeWarning ? "warning" : "error"}
+          size="sm"
+          className="my-1 border-opacity-40"
+        >
+          <CircleAlertIcon />
+          <AlertTitle
+            className={isRuntimeWarning ? "text-warning-foreground" : "text-destructive-foreground"}
+          >
+            {workEntry.label}
+          </AlertTitle>
+          <AlertDescription className="col-start-2 mt-1 text-xs text-foreground/80 whitespace-pre-wrap leading-relaxed max-w-full overflow-x-auto break-all font-mono">
+            <div>{workEntry.preview}</div>
+            {workEntry.detail && (
+              <details className="mt-2 text-[11px] text-muted-foreground/60 whitespace-normal">
+                <summary className="cursor-pointer hover:text-muted-foreground font-medium select-none">
+                  View details
+                </summary>
+                <div className="mt-1.5 p-2 rounded bg-muted/20 border border-border/20 max-w-full overflow-x-auto break-all font-mono whitespace-pre text-[10px] leading-normal text-muted-foreground/80">
+                  {workEntry.detail}
+                </div>
+              </details>
+            )}
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   return (
     <div className={cn(compact ? "py-0.5" : "rounded-lg py-1")}>

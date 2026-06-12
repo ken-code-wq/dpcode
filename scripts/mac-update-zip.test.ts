@@ -77,7 +77,11 @@ describe("mac-update-zip", () => {
     );
 
     assert.throws(
-      () => resolveSingleMacUpdateZipFileName(["Synara-Dev-0.1.5-arm64.zip", "Synara-Dev-0.1.5-x64.zip"]),
+      () =>
+        resolveSingleMacUpdateZipFileName([
+          "Synara-Dev-0.1.5-arm64.zip",
+          "Synara-Dev-0.1.5-x64.zip",
+        ]),
       /Expected one macOS update zip artifact/,
     );
   });
@@ -92,10 +96,7 @@ describe("mac-update-zip", () => {
       ["latest-mac.yml"],
     );
 
-    assert.deepStrictEqual(
-      resolveMacUpdateManifestFileNames(["Synara-Dev-0.1.5-arm64.dmg"]),
-      [],
-    );
+    assert.deepStrictEqual(resolveMacUpdateManifestFileNames(["Synara-Dev-0.1.5-arm64.dmg"]), []);
   });
 
   it("updates the macOS zip file entry and matching top-level sha", () => {

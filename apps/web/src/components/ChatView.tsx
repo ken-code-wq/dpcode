@@ -306,6 +306,9 @@ import {
   deriveCumulativeCostUsd,
   deriveLatestContextWindowSnapshot,
   deriveSelectedContextWindowSnapshot,
+  deriveDefaultContextWindowSnapshot,
+  estimateDraftTokens,
+  fallbackContextWindowSnapshot,
 } from "../lib/contextWindow";
 import { formatVoiceRecordingDuration, useVoiceRecorder } from "../lib/voiceRecorder";
 import {
@@ -6825,22 +6828,57 @@ export default function ChatView({
     selectedProviderModelOptions,
     selectedRuntimeModel,
   );
-  const runtimeUsageContextWindow = useMemo(
+  const baseContextWindow = useMemo(
     () =>
-      activeContextWindow ??
-      (selectedProvider === "claudeAgent"
-        ? deriveSelectedContextWindowSnapshot(composerTraitSelection.contextWindow)
-        : null),
-    [activeContextWindow, composerTraitSelection.contextWindow, selectedProvider],
+      fallbackContextWindowSnapshot(
+        activeContextWindow ??
+          deriveSelectedContextWindowSnapshot(composerTraitSelection.contextWindow),
+        selectedProvider,
+        selectedModel,
+      ),
+    [activeContextWindow, composerTraitSelection.contextWindow, selectedProvider, selectedModel],
   );
+  const runtimeUsageContextWindow = useMemo(() => {
+    if (!baseContextWindow) {
+      return null;
+    }
+    const draftTokens = estimateDraftTokens({
+      prompt,
+      images: composerImages,
+      assistantSelections: composerAssistantSelections,
+      terminalContexts: composerTerminalContexts,
+    });
+    const usedTokens = (baseContextWindow.usedTokens ?? 0) + draftTokens;
+    const maxTokens = baseContextWindow.maxTokens;
+    const usedPercentage =
+      maxTokens !== null && maxTokens > 0
+        ? Math.min(100, (usedTokens / maxTokens) * 100)
+        : baseContextWindow.usedPercentage;
+    const remainingTokens =
+      maxTokens !== null ? Math.max(0, Math.round(maxTokens - usedTokens)) : null;
+    const remainingPercentage = usedPercentage !== null ? Math.max(0, 100 - usedPercentage) : null;
+
+    return {
+      ...baseContextWindow,
+      usedTokens,
+      remainingTokens,
+      usedPercentage,
+      remainingPercentage,
+    };
+  }, [
+    baseContextWindow,
+    prompt,
+    composerImages,
+    composerAssistantSelections,
+    composerTerminalContexts,
+  ]);
   const contextWindowSelectionStatus = useMemo(
     () =>
       deriveContextWindowSelectionStatus({
         activeSnapshot: runtimeUsageContextWindow,
-        selectedValue:
-          selectedProvider === "claudeAgent" ? composerTraitSelection.contextWindow : null,
+        selectedValue: composerTraitSelection.contextWindow,
       }),
-    [runtimeUsageContextWindow, composerTraitSelection.contextWindow, selectedProvider],
+    [runtimeUsageContextWindow, composerTraitSelection.contextWindow],
   );
   const useSplitComposerPickerControls = isLocalDraftThread && !hasThreadStarted;
   const composerFooterControlsPlan = useMemo(
@@ -8888,7 +8926,7 @@ export default function ChatView({
         envMode={envMode}
         envState={envState}
         branch={activeThread?.branch ?? activeRootBranch}
-        contextWindow={activeContextWindow}
+        contextWindow={runtimeUsageContextWindow}
         cumulativeCostUsd={activeCumulativeCostUsd}
         rateLimitStatus={activeRateLimitStatus}
         activeContextWindowLabel={contextWindowSelectionStatus.activeLabel}

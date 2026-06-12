@@ -840,6 +840,11 @@ function toDerivedWorkLogEntry(activity: OrchestrationThreadActivity): DerivedWo
   if (collabTaskOutputDetail) {
     entry.detail = collabTaskOutputDetail;
   }
+  if (activity.kind === "runtime.warning" || activity.kind === "runtime.error") {
+    if (payload && typeof payload.message === "string" && payload.message.length > 0) {
+      entry.preview = payload.message;
+    }
+  }
   if (commandPreview.command) {
     entry.command = commandPreview.command;
   }

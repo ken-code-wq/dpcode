@@ -5,7 +5,9 @@ import { join } from "path";
 const RESOURCES_DIR = join(__dirname, "../apps/desktop/resources");
 
 function resizePng(source: string, target: string, size: number) {
-  execSync(`sips -s format png -z ${size} ${size} "${source}" --out "${target}"`, { stdio: "ignore" });
+  execSync(`sips -s format png -z ${size} ${size} "${source}" --out "${target}"`, {
+    stdio: "ignore",
+  });
 }
 
 function generateIcns(sourcePng: string, targetIcns: string) {
@@ -60,7 +62,7 @@ function generateIco(sourcePng: string, targetIco: string) {
     const size = sizes[i]!;
     const pngBuffer = pngBuffers[i]!;
     const dirEntry = Buffer.alloc(16);
-    
+
     dirEntry.writeUInt8(size >= 256 ? 0 : size, 0); // Width
     dirEntry.writeUInt8(size >= 256 ? 0 : size, 1); // Height
     dirEntry.writeUInt8(0, 2); // Color palette
@@ -74,14 +76,10 @@ function generateIco(sourcePng: string, targetIco: string) {
     currentOffset += pngBuffer.length;
   }
 
-  const finalIcoBuffer = Buffer.concat([
-    header,
-    ...directories,
-    ...pngBuffers,
-  ]);
+  const finalIcoBuffer = Buffer.concat([header, ...directories, ...pngBuffers]);
 
   writeFileSync(targetIco, finalIcoBuffer);
-  
+
   for (const tempFile of tempFiles) {
     rmSync(tempFile, { force: true });
   }

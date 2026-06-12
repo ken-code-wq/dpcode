@@ -155,9 +155,25 @@ function applyThemeState(state: ThemeState, suppressTransitions = false) {
 
   const variant = resolveThemeVariant(state.mode, getSystemDark());
   const activeTheme = resolveThemePack(state, variant);
+
+  // Read full-window translucency from the client-side app settings so the
+  // module-level applyThemeState() call (which runs before React mounts) can
+  // still pick it up without depending on the React hook.
+  let fullWindowTranslucency = false;
+  try {
+    const raw = globalThis.localStorage?.getItem("synara:app-settings:v1");
+    if (raw) {
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      fullWindowTranslucency = parsed.fullWindowTranslucency === true;
+    }
+  } catch {
+    // ignore parse errors – fall through to default (false)
+  }
+
   const cssVariableBuild = buildThemeCssVariables(activeTheme, variant, {
     electron: isElectron,
     isMac: isMacPlatform(typeof navigator === "undefined" ? "" : navigator.platform),
+    fullWindowTranslucency,
   });
 
   root.classList.toggle("dark", variant === "dark");

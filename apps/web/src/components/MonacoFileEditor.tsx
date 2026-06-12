@@ -188,7 +188,12 @@ const configureMonacoBeforeMount: BeforeMount = (monaco) => {
   }
 };
 
-export function MonacoFileEditor({ filePath, contents, workspaceRoot, onClose }: MonacoFileEditorProps) {
+export function MonacoFileEditor({
+  filePath,
+  contents,
+  workspaceRoot,
+  onClose,
+}: MonacoFileEditorProps) {
   const { resolvedTheme } = useTheme();
   const writeFile = useProjectWriteFile();
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
@@ -237,9 +242,7 @@ export function MonacoFileEditor({ filePath, contents, workspaceRoot, onClose }:
     const action = instance.addAction({
       id: "save-file",
       label: "Save File",
-      keybindings: [
-        monacoInstance.KeyMod.CtrlCmd | monacoInstance.KeyCode.KeyS,
-      ],
+      keybindings: [monacoInstance.KeyMod.CtrlCmd | monacoInstance.KeyCode.KeyS],
       run: () => {
         void handleSave();
       },
@@ -256,18 +259,12 @@ export function MonacoFileEditor({ filePath, contents, workspaceRoot, onClose }:
   return (
     <div className="monaco-file-editor flex h-full min-h-0 min-w-0 flex-1 flex-col bg-[var(--color-background-surface)]">
       <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border/65 px-3">
-        <FileEntryIcon
-          pathValue={filePath}
-          kind="file"
-          className="size-3.5 shrink-0"
-        />
+        <FileEntryIcon pathValue={filePath} kind="file" className="size-3.5 shrink-0" />
         <div className="min-w-0 flex-1">
           <div className="truncate text-[12px] font-medium text-foreground">
             {basenameOfPath(filePath)}
           </div>
-          <div className="truncate text-[10px] text-muted-foreground/75">
-            {filePath}
-          </div>
+          <div className="truncate text-[10px] text-muted-foreground/75">{filePath}</div>
         </div>
         {dirty ? (
           <span className="size-2 shrink-0 rounded-full bg-yellow-500" title="Unsaved changes" />

@@ -1780,6 +1780,24 @@ function SettingsRouteView() {
 
         <SettingsCard>
           <SettingsRow
+            title="Full window translucency"
+            description={
+              isElectron
+                ? "Extend the frosted-glass effect beyond the sidebar into the chat surface. Only applies on macOS."
+                : "Requires the desktop app on macOS."
+            }
+            control={
+              <Switch
+                checked={settings.fullWindowTranslucency}
+                onCheckedChange={(checked) => updateSettings({ fullWindowTranslucency: checked })}
+                aria-label="Toggle full window translucency"
+              />
+            }
+          />
+        </SettingsCard>
+
+        <SettingsCard>
+          <SettingsRow
             title="UI density"
             description="Control spacing in the sidebar, composer, chat gutters, and settings rows without changing font size."
             resetAction={

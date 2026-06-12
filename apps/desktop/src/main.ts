@@ -2411,11 +2411,15 @@ function getWindowMaterialOptions(): BrowserWindowConstructorOptions {
     return { backgroundColor: nativeTheme.shouldUseDarkColors ? "#181818" : "#ffffff" };
   }
   return {
+    // "under-window" applies the classic frosted-glass NSVisualEffectView
+    // behind the web content. Electron required transparent: true on some
+    // versions (electron#31461, #40039) for vibrancy to render at all.
     vibrancy: "under-window",
-    // "followWindow" lets macOS drop vibrancy blending to inactive when the
-    // window is backgrounded, so WindowServer stops continuously recompositing
-    // it. "active" forced full-cost blending even when the app was unfocused.
-    visualEffectState: "followWindow",
+    transparent: true,
+    // "active" keeps the blur live even when the window is backgrounded.
+    // "followWindow" would drop it on focus loss (WindowServer saves GPU
+    // cycles), but that also creates a visible flash when switching back.
+    visualEffectState: "active",
     backgroundColor: "#00000000",
   };
 }

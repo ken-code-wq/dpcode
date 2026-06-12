@@ -3,7 +3,7 @@
 // Layer: Web orchestration helper
 
 import { type ProjectId } from "@t3tools/contracts";
-import { isWorkspaceRootWithin, workspaceRootsEqual } from "@t3tools/shared/threadWorkspace";
+import { workspaceRootsEqual } from "@t3tools/shared/threadWorkspace";
 import type { Project } from "../types";
 import { readNativeApi } from "../nativeApi";
 import { useStore } from "../store";
@@ -14,7 +14,7 @@ import { newCommandId, newProjectId } from "./utils";
 const pendingHomeChatCreationByWorkspaceRoot = new Map<string, Promise<ProjectId | null>>();
 const pendingHomeChatFixupByWorkspaceRoot = new Map<string, Promise<void>>();
 
-function matchesLegacyHomeChatWorkspaceRoot(
+function matchesHomeChatWorkspaceRoot(
   project: Pick<Project, "cwd">,
   input: ServerWorkspacePaths,
 ): boolean {
@@ -28,33 +28,6 @@ function matchesLegacyHomeChatWorkspaceRoot(
   );
 }
 
-function isManagedChatWorkspaceProject(
-  project: Pick<Project, "cwd" | "kind">,
-  input: ServerWorkspacePaths,
-): boolean {
-  const chatWorkspaceRoot = input.chatWorkspaceRoot?.trim() ?? "";
-  if (!chatWorkspaceRoot || project.kind !== "chat") {
-    return false;
-  }
-  return (
-    isWorkspaceRootWithin(project.cwd, chatWorkspaceRoot) &&
-    !workspaceRootsEqual(project.cwd, chatWorkspaceRoot)
-  );
-}
-
-function isLegacyHomeChatContainerProject(
-  project: Pick<Project, "cwd" | "kind" | "name" | "remoteName"> | null | undefined,
-  input: ServerWorkspacePaths,
-): boolean {
-  if (!project || !input.homeDir) {
-    return false;
-  }
-  return (
-    matchesLegacyHomeChatWorkspaceRoot(project, input) &&
-    (project.kind === "chat" || project.remoteName === "Home" || project.name === "Home")
-  );
-}
-
 function hasThreadsForProject(projectId: ProjectId): boolean {
   const state = useStore.getState();
   return (state.threadIds ?? [])
@@ -63,11 +36,11 @@ function hasThreadsForProject(projectId: ProjectId): boolean {
 }
 
 function scoreHomeChatProject(project: Project, input: ServerWorkspacePaths): number {
-  const homeDir = input.homeDir?.trim() ?? "";
+  const workspaceRoot = resolveServerChatWorkspaceRoot(input);
   let score = 0;
   if (hasThreadsForProject(project.id)) score += 8;
   if (project.kind === "chat") score += 4;
-  if (homeDir && workspaceRootsEqual(project.cwd, homeDir)) score += 2;
+  if (workspaceRoot && workspaceRootsEqual(project.cwd, workspaceRoot)) score += 2;
   if (project.remoteName === "Home" || project.name === "Home") score += 1;
   return score;
 }
@@ -85,11 +58,13 @@ function findCanonicalHomeProject(input: ServerWorkspacePaths): {
   canonicalProjectId: ProjectId | null;
   duplicateProjectIds: ProjectId[];
   needsKindFixup: boolean;
+  needsWorkspaceRootFixup: boolean;
 } {
   const state = useStore.getState();
   const homeProjects = state.projects.filter((project) =>
-    isLegacyHomeChatContainerProject(project, input),
+    isHomeChatContainerProject(project, input),
   );
+  const workspaceRoot = resolveServerChatWorkspaceRoot(input);
   const canonicalProject =
     [...homeProjects].sort(
       (left, right) => scoreHomeChatProject(right, input) - scoreHomeChatProject(left, input),
@@ -99,6 +74,7 @@ function findCanonicalHomeProject(input: ServerWorkspacePaths): {
       canonicalProjectId: null,
       duplicateProjectIds: [],
       needsKindFixup: false,
+      needsWorkspaceRootFixup: false,
     };
   }
 
@@ -112,6 +88,9 @@ function findCanonicalHomeProject(input: ServerWorkspacePaths): {
     canonicalProjectId: canonicalProject.id,
     duplicateProjectIds,
     needsKindFixup: canonicalProject.kind !== "chat",
+    needsWorkspaceRootFixup: Boolean(
+      workspaceRoot && !workspaceRootsEqual(canonicalProject.cwd, workspaceRoot),
+    ),
   };
 }
 
@@ -121,19 +100,36 @@ async function fixupHomeChatProject(input: ServerWorkspacePaths): Promise<void> 
     return;
   }
 
-  const { canonicalProjectId, duplicateProjectIds, needsKindFixup } =
+  const { canonicalProjectId, duplicateProjectIds, needsKindFixup, needsWorkspaceRootFixup } =
     findCanonicalHomeProject(input);
   if (!canonicalProjectId) {
     return;
   }
 
-  if (needsKindFixup) {
+  const targetWorkspaceRoot = needsWorkspaceRootFixup
+    ? resolveServerChatWorkspaceRoot(input)
+    : null;
+  if (needsWorkspaceRootFixup && !targetWorkspaceRoot) {
+    return;
+  }
+
+  if (needsKindFixup || needsWorkspaceRootFixup) {
+    const workspaceRootPatch:
+      | { readonly workspaceRoot: string; readonly createWorkspaceRootIfMissing: true }
+      | Record<string, never> =
+      needsWorkspaceRootFixup && targetWorkspaceRoot
+        ? {
+            workspaceRoot: targetWorkspaceRoot,
+            createWorkspaceRootIfMissing: true,
+          }
+        : {};
     await api.orchestration.dispatchCommand({
       type: "project.meta.update",
       commandId: newCommandId(),
       projectId: canonicalProjectId,
       kind: "chat",
-      title: "Home",
+      ...(needsKindFixup ? { title: "Home" } : {}),
+      ...workspaceRootPatch,
     });
   }
 
@@ -147,7 +143,7 @@ async function fixupHomeChatProject(input: ServerWorkspacePaths): Promise<void> 
 }
 
 function scheduleHomeChatFixup(input: ServerWorkspacePaths): void {
-  const workspaceRoot = input.homeDir?.trim() ?? "";
+  const workspaceRoot = resolveServerChatWorkspaceRoot(input);
   if (!workspaceRoot) {
     return;
   }
@@ -169,8 +165,7 @@ export async function ensureHomeChatProject(
   }
 
   const workspaceRoot = resolveServerChatWorkspaceRoot(paths);
-  const placeholderWorkspaceRoot = paths.homeDir?.trim() ?? "";
-  if (!workspaceRoot || !placeholderWorkspaceRoot) {
+  if (!workspaceRoot || !paths.homeDir) {
     return null;
   }
 
@@ -193,7 +188,8 @@ export async function ensureHomeChatProject(
       projectId,
       kind: "chat",
       title: "Home",
-      workspaceRoot: placeholderWorkspaceRoot,
+      workspaceRoot,
+      createWorkspaceRootIfMissing: true,
       createdAt: new Date().toISOString(),
     });
     return projectId;
@@ -217,7 +213,7 @@ export function isHomeChatContainerProject(
     return false;
   }
   return (
-    isManagedChatWorkspaceProject(project, paths) ||
-    isLegacyHomeChatContainerProject(project, paths)
+    matchesHomeChatWorkspaceRoot(project, paths) &&
+    (project.kind === "chat" || project.remoteName === "Home" || project.name === "Home")
   );
 }

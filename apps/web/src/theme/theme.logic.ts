@@ -662,11 +662,15 @@ export function resolveThemeVariant(mode: ThemeMode, systemDark: boolean): Theme
 export function buildThemeCssVariables(
   pack: ThemePack,
   variant: ThemeVariant,
-  options?: { electron?: boolean; isMac?: boolean },
+  options?: {
+    electron?: boolean;
+    isMac?: boolean;
+    /** When true AND the shell is already translucent (macOS Electron), the chat
+     *  content surface also becomes semi-transparent so the window vibrancy shows
+     *  through the entire app. Has no effect on opaque windows. */
+    fullWindowTranslucency?: boolean;
+  },
 ): ThemeCssVariableBuild {
-  const resolvedTokens = buildResolvedThemeTokens(pack, variant);
-  const codexVariables = resolvedTokens.codexVariables;
-  const readCodexVariable = (name: string) => getRequiredVariable(codexVariables, name);
   // The translucent shell relies on macOS window vibrancy as its backing
   // material. Windows/Linux have no equivalent, so a translucent shell there
   // leaves the transparent body and backdrop-filter surfaces bleeding through
@@ -675,6 +679,11 @@ export function buildThemeCssVariables(
     options?.electron === true && options?.isMac === true && !pack.theme.opaqueWindows
       ? "translucent"
       : "opaque";
+  const fullWindowTranslucencyActive =
+    options?.fullWindowTranslucency === true && material === "translucent";
+  const resolvedTokens = buildResolvedThemeTokens(pack, variant, fullWindowTranslucencyActive);
+  const codexVariables = resolvedTokens.codexVariables;
+  const readCodexVariable = (name: string) => getRequiredVariable(codexVariables, name);
   const warningColor = WARNING_COLOR_BY_VARIANT[variant];
   // Codex paints the app sidebar with the PRIMARY surface (--color-background-surface,
   // mapped through --color-token-side-bar-background), not the darker "under" surface.
@@ -790,6 +799,7 @@ export function buildThemeCssVariables(
 export function buildResolvedThemeTokens(
   pack: ThemePack,
   variant: ThemeVariant,
+  fullWindowTranslucency?: boolean,
 ): ResolvedThemeTokens {
   const computedTheme = buildComputedTheme(pack.theme, variant);
   const derived =
@@ -797,7 +807,7 @@ export function buildResolvedThemeTokens(
       ? buildLightDerivedTokens(computedTheme)
       : buildDarkDerivedTokens(computedTheme);
   const panel = buildPanelBackground(computedTheme);
-  const codexVariables = buildCodexCssVariables(computedTheme, derived, panel);
+  const codexVariables = buildCodexCssVariables(computedTheme, derived, panel, fullWindowTranslucency);
 
   return {
     aliases: buildThemeTokenAliases(codexVariables),
@@ -836,6 +846,7 @@ function buildCodexCssVariables(
     | ReturnType<typeof buildLightDerivedTokens>
     | ReturnType<typeof buildDarkDerivedTokens>,
   panelBackground: string,
+  fullWindowTranslucency?: boolean,
 ) {
   const terminalAnsiGreen = buildTerminalAnsiGreen(theme.theme.semanticColors.diffAdded);
 
@@ -871,7 +882,10 @@ function buildCodexCssVariables(
     "--color-background-elevated-secondary": derivedTokens.elevatedSecondary,
     "--color-background-elevated-secondary-opaque": derivedTokens.elevatedSecondaryOpaque,
     "--color-background-panel": panelBackground,
-    "--color-background-surface": theme.theme.surface,
+    "--color-background-surface":
+      fullWindowTranslucency === true
+        ? `color-mix(in srgb, ${theme.theme.surface} ${theme.variant === "dark" ? "75" : "70"}%, transparent)`
+        : theme.theme.surface,
     "--color-background-surface-under": theme.surfaceUnder,
     // The user message bubble has always reused the subtle secondary surface
     // (theme ink at ~4% over the background); keep it sourced from there.

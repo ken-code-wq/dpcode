@@ -547,16 +547,17 @@ function toolContentDetail(content: ReadonlyArray<unknown> | undefined | null): 
 
 function normalizePromptUsage(value: unknown): ThreadTokenUsageSnapshot | undefined {
   const usage = asRecord(value);
-  const usedTokens = asNumber(usage?.totalTokens);
+  const usedTokens = asNumber(usage?.totalTokens) ?? asNumber(usage?.total_tokens);
   if (usedTokens === undefined || usedTokens <= 0) {
     return undefined;
   }
 
-  const inputTokens = asNumber(usage?.inputTokens);
-  const outputTokens = asNumber(usage?.outputTokens);
-  const thoughtTokens = asNumber(usage?.thoughtTokens);
-  const cachedReadTokens = asNumber(usage?.cachedReadTokens);
-  const cachedWriteTokens = asNumber(usage?.cachedWriteTokens);
+  const inputTokens = asNumber(usage?.inputTokens) ?? asNumber(usage?.input_tokens);
+  const outputTokens = asNumber(usage?.outputTokens) ?? asNumber(usage?.output_tokens);
+  const thoughtTokens = asNumber(usage?.thoughtTokens) ?? asNumber(usage?.thought_tokens);
+  const cachedReadTokens = asNumber(usage?.cachedReadTokens) ?? asNumber(usage?.cached_read_tokens);
+  const cachedWriteTokens =
+    asNumber(usage?.cachedWriteTokens) ?? asNumber(usage?.cached_write_tokens);
   const cachedInputTokens =
     (cachedReadTokens ?? 0) + (cachedWriteTokens ?? 0) > 0
       ? (cachedReadTokens ?? 0) + (cachedWriteTokens ?? 0)

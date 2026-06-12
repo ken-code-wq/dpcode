@@ -1233,7 +1233,11 @@ function FilePreview(props: {
         {fileQuery.isLoading ? (
           <FilePreviewLoadingState />
         ) : fileQuery.error ? (
-          <PanelStateMessage density="compact" fill="flex" className="items-start justify-start p-3">
+          <PanelStateMessage
+            density="compact"
+            fill="flex"
+            className="items-start justify-start p-3"
+          >
             <p className="text-left text-[11px] text-destructive/85">
               {fileQuery.error instanceof Error ? fileQuery.error.message : "Could not read file."}
             </p>

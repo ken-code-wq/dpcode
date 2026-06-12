@@ -2342,6 +2342,51 @@ describe("deriveWorkLogEntries", () => {
       }),
     );
   });
+
+  it("extracts payload.message into preview for runtime.warning and runtime.error", () => {
+    const activities: OrchestrationThreadActivity[] = [
+      makeActivity({
+        id: "warning-1",
+        kind: "runtime.warning",
+        summary: "Runtime warning",
+        tone: "info",
+        sequence: 1,
+        payload: {
+          message: "Error executing tool write_file",
+          detail: "Tool not found traceback info...",
+        },
+      }),
+      makeActivity({
+        id: "error-1",
+        kind: "runtime.error",
+        summary: "Provider runtime error",
+        tone: "error",
+        sequence: 2,
+        payload: {
+          message: "Attempt 1 failed with status 429",
+          class: "provider_error",
+        },
+      }),
+    ];
+
+    const entries = deriveWorkLogEntries(activities, undefined);
+    expect(entries).toHaveLength(2);
+    expect(entries[0]).toEqual(
+      expect.objectContaining({
+        id: "warning-1",
+        label: "Runtime warning",
+        preview: "Error executing tool write_file",
+        detail: "Tool not found traceback info...",
+      }),
+    );
+    expect(entries[1]).toEqual(
+      expect.objectContaining({
+        id: "error-1",
+        label: "Provider runtime error",
+        preview: "Attempt 1 failed with status 429",
+      }),
+    );
+  });
 });
 
 describe("deriveTimelineEntries", () => {

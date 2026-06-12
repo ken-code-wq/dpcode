@@ -1,4 +1,9 @@
-import type { OrchestrationThreadActivity, ThreadTokenUsageSnapshot } from "@t3tools/contracts";
+import type {
+  OrchestrationThreadActivity,
+  ThreadTokenUsageSnapshot,
+  ProviderKind,
+} from "@t3tools/contracts";
+import { appendTerminalContextsToPrompt, type TerminalContextDraft } from "./terminalContext";
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
@@ -358,4 +363,116 @@ export function formatContextWindowTokens(value: number | null | undefined): str
     return `${Math.round(value / 1_000)}k`;
   }
   return `${(value / 1_000_000).toFixed(1).replace(/\.0$/, "")}m`;
+}
+
+export function estimateDraftTokens(input: {
+  prompt: string;
+  images?: ReadonlyArray<{ readonly sizeBytes?: number }> | null | undefined;
+  assistantSelections?: ReadonlyArray<{ readonly text?: string }> | null | undefined;
+  terminalContexts?: ReadonlyArray<TerminalContextDraft> | null | undefined;
+}): number {
+  let charCount = 0;
+
+  // Materialize prompt text with inline/trailing terminal contexts
+  const materializedPrompt = appendTerminalContextsToPrompt(
+    input.prompt,
+    input.terminalContexts ?? [],
+  );
+  charCount += materializedPrompt.length;
+
+  // Assistant selections text length
+  if (input.assistantSelections) {
+    for (const selection of input.assistantSelections) {
+      if (selection && typeof selection.text === "string") {
+        charCount += selection.text.length;
+      }
+    }
+  }
+
+  // Roughly 4 characters per token
+  let estimatedTokens = Math.ceil(charCount / 4);
+
+  // Images take around 1,000 tokens each
+  if (input.images) {
+    estimatedTokens += input.images.length * 1000;
+  }
+
+  return estimatedTokens;
+}
+
+export function getModelDefaultContextWindowLimit(
+  provider: ProviderKind,
+  model: string | null | undefined,
+): number {
+  if (provider === "claudeAgent") {
+    return 200_000;
+  }
+  if (provider === "gemini") {
+    return 1_000_000;
+  }
+  if (provider === "pi") {
+    return 16_384;
+  }
+  // Codex / Cursor / Grok / Kilo / OpenCode
+  return 128_000;
+}
+
+export function deriveDefaultContextWindowSnapshot(
+  provider: ProviderKind,
+  model: string | null | undefined,
+): ContextWindowSnapshot {
+  const maxTokens = getModelDefaultContextWindowLimit(provider, model);
+  return {
+    usedTokens: 0,
+    usedPercent: null,
+    totalProcessedTokens: null,
+    maxTokens,
+    remainingTokens: maxTokens,
+    usedPercentage: 0,
+    remainingPercentage: 100,
+    inputTokens: null,
+    cachedInputTokens: null,
+    outputTokens: null,
+    reasoningOutputTokens: null,
+    lastUsedTokens: null,
+    lastInputTokens: null,
+    lastCachedInputTokens: null,
+    lastOutputTokens: null,
+    lastReasoningOutputTokens: null,
+    toolUses: null,
+    durationMs: null,
+    compactsAutomatically: false,
+    updatedAt: "",
+  };
+}
+
+export function fallbackContextWindowSnapshot(
+  snapshot: ContextWindowSnapshot | null | undefined,
+  provider: ProviderKind,
+  model: string | null | undefined,
+): ContextWindowSnapshot {
+  const defaultSnapshot = deriveDefaultContextWindowSnapshot(provider, model);
+  if (!snapshot) {
+    return defaultSnapshot;
+  }
+  if (snapshot.maxTokens !== null && snapshot.maxTokens > 0) {
+    return snapshot;
+  }
+
+  const maxTokens = defaultSnapshot.maxTokens;
+  const usedTokens = snapshot.usedTokens ?? 0;
+  const usedPercentage =
+    snapshot.usedPercent ??
+    (maxTokens !== null && maxTokens > 0 ? Math.min(100, (usedTokens / maxTokens) * 100) : null);
+  const remainingTokens =
+    maxTokens !== null ? Math.max(0, Math.round(maxTokens - usedTokens)) : null;
+  const remainingPercentage = usedPercentage !== null ? Math.max(0, 100 - usedPercentage) : null;
+
+  return {
+    ...snapshot,
+    maxTokens,
+    usedPercentage,
+    remainingTokens,
+    remainingPercentage,
+  };
 }

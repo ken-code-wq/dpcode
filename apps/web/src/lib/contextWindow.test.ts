@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { EventId, type OrchestrationThreadActivity, TurnId } from "@t3tools/contracts";
+import { EventId, type OrchestrationThreadActivity, TurnId, ThreadId } from "@t3tools/contracts";
 
 import {
   deriveContextWindowSelectionStatus,
@@ -10,6 +10,10 @@ import {
   formatContextWindowSelectionLabel,
   formatContextWindowTokens,
   inferContextWindowSelectionValue,
+  estimateDraftTokens,
+  getModelDefaultContextWindowLimit,
+  deriveDefaultContextWindowSnapshot,
+  fallbackContextWindowSnapshot,
 } from "./contextWindow";
 
 function makeActivity(
@@ -245,6 +249,108 @@ describe("contextWindow", () => {
       activeLabel: "200k",
       selectedLabel: "1M",
       pendingSelectedLabel: "1M",
+    });
+  });
+
+  it("estimates draft tokens correctly", () => {
+    const dummyTerminalContext = {
+      id: "test-id",
+      threadId: ThreadId.makeUnsafe("test-thread"),
+      createdAt: "2026-03-23T00:00:00.000Z",
+      terminalId: "term-1",
+      terminalLabel: "Terminal 1",
+      lineStart: 1,
+      lineEnd: 5,
+      text: "Line 1\nLine 2\nLine 3\nLine 4\nLine 5",
+    };
+
+    const tokens = estimateDraftTokens({
+      prompt: "Hello world",
+      images: [{ sizeBytes: 12345 }],
+      assistantSelections: [{ text: "Hello from assistant" }],
+      terminalContexts: [dummyTerminalContext],
+    });
+
+    expect(tokens).toBeGreaterThan(1000);
+  });
+
+  it("resolves default context window limits", () => {
+    expect(getModelDefaultContextWindowLimit("claudeAgent", "any")).toBe(200_000);
+    expect(getModelDefaultContextWindowLimit("gemini", "any")).toBe(1_000_000);
+    expect(getModelDefaultContextWindowLimit("pi", "any")).toBe(16_384);
+    expect(getModelDefaultContextWindowLimit("codex", "any")).toBe(128_000);
+  });
+
+  it("derives default context window snapshot", () => {
+    const snapshot = deriveDefaultContextWindowSnapshot("gemini", "any");
+    expect(snapshot.maxTokens).toBe(1_000_000);
+    expect(snapshot.usedTokens).toBe(0);
+    expect(snapshot.usedPercentage).toBe(0);
+  });
+
+  describe("fallbackContextWindowSnapshot", () => {
+    it("returns default snapshot when input is null or undefined", () => {
+      const snapshot = fallbackContextWindowSnapshot(null, "gemini", "any");
+      expect(snapshot.maxTokens).toBe(1_000_000);
+      expect(snapshot.usedTokens).toBe(0);
+      expect(snapshot.usedPercentage).toBe(0);
+    });
+
+    it("returns snapshot unchanged if maxTokens is already set and positive", () => {
+      const original = {
+        usedTokens: 10_000,
+        usedPercent: null,
+        totalProcessedTokens: null,
+        maxTokens: 500_000,
+        remainingTokens: 490_000,
+        usedPercentage: 2,
+        remainingPercentage: 98,
+        inputTokens: null,
+        cachedInputTokens: null,
+        outputTokens: null,
+        reasoningOutputTokens: null,
+        lastUsedTokens: null,
+        lastInputTokens: null,
+        lastCachedInputTokens: null,
+        lastOutputTokens: null,
+        lastReasoningOutputTokens: null,
+        toolUses: null,
+        durationMs: null,
+        compactsAutomatically: false,
+        updatedAt: "some-date",
+      };
+      const snapshot = fallbackContextWindowSnapshot(original, "gemini", "any");
+      expect(snapshot).toEqual(original);
+    });
+
+    it("supplies default limit and recalculates percentages/tokens when maxTokens is null or 0", () => {
+      const original = {
+        usedTokens: 250_000,
+        usedPercent: null,
+        totalProcessedTokens: null,
+        maxTokens: null,
+        remainingTokens: null,
+        usedPercentage: null,
+        remainingPercentage: null,
+        inputTokens: null,
+        cachedInputTokens: null,
+        outputTokens: null,
+        reasoningOutputTokens: null,
+        lastUsedTokens: null,
+        lastInputTokens: null,
+        lastCachedInputTokens: null,
+        lastOutputTokens: null,
+        lastReasoningOutputTokens: null,
+        toolUses: null,
+        durationMs: null,
+        compactsAutomatically: false,
+        updatedAt: "some-date",
+      };
+      const snapshot = fallbackContextWindowSnapshot(original, "gemini", "any");
+      expect(snapshot.maxTokens).toBe(1_000_000);
+      expect(snapshot.usedPercentage).toBe(25);
+      expect(snapshot.remainingTokens).toBe(750_000);
+      expect(snapshot.remainingPercentage).toBe(75);
     });
   });
 });
