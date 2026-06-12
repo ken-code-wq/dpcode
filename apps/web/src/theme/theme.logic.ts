@@ -888,7 +888,7 @@ function buildCodexCssVariables(
     "--color-background-panel": panelBackground,
     "--color-background-surface":
       fullWindowTranslucency === true
-        ? `color-mix(in srgb, ${theme.theme.surface} ${theme.variant === "dark" ? "75" : "70"}%, transparent)`
+        ? `color-mix(in srgb, ${theme.theme.surface} ${theme.variant === "dark" ? "72" : "64"}%, transparent)`
         : theme.theme.surface,
     "--color-background-surface-under": theme.surfaceUnder,
     // The user message bubble has always reused the subtle secondary surface
