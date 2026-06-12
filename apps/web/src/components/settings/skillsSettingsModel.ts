@@ -62,7 +62,7 @@ export const PROVIDER_STACK_ORDER: readonly ProviderKind[] = [
 export function skillOriginInfo(scope: string | undefined): SkillOriginInfo {
   switch (scope) {
     case "synara":
-      return { label: "Synara", provider: null };
+      return { label: "Tyde", provider: null };
     case "codex":
       return { label: PROVIDER_DISPLAY_NAMES.codex, provider: "codex" };
     case "claude":

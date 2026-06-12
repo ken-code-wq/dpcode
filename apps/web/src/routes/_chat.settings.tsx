@@ -19,6 +19,7 @@ import {
   type RefObject,
   useCallback,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -45,6 +46,10 @@ import {
   type UiDensity,
   MAX_CHAT_FONT_SIZE_PX,
   MAX_TERMINAL_FONT_SIZE_PX,
+  MAX_TRANSLUCENCY_PX,
+  MIN_TRANSLUCENCY_PX,
+  DEFAULT_SIDEBAR_TRANSLUCENCY,
+  DEFAULT_MAIN_WINDOW_TRANSLUCENCY,
   getCustomModelsForProvider,
   getGitTextGenerationModelOptions,
   MAX_CUSTOM_MODEL_LENGTH,
@@ -52,6 +57,8 @@ import {
   MIN_TERMINAL_FONT_SIZE_PX,
   MODEL_PROVIDER_SETTINGS,
   normalizeChatFontSizePx,
+  normalizeMainWindowTranslucency,
+  normalizeSidebarTranslucency,
   normalizeTerminalFontFamily,
   normalizeTerminalFontSizePx,
   patchCustomModels,
@@ -1798,6 +1805,56 @@ function SettingsRouteView() {
 
         <SettingsCard>
           <SettingsRow
+            title="Sidebar translucency"
+            description="Adjust how transparent the sidebar appears. Lower values make it more opaque, higher values make it more translucent."
+            resetAction={
+              settings.sidebarTranslucency !== DEFAULT_SIDEBAR_TRANSLUCENCY ? (
+                <SettingResetButton
+                  label="sidebar translucency"
+                  onClick={() =>
+                    updateSettings({
+                      sidebarTranslucency: DEFAULT_SIDEBAR_TRANSLUCENCY,
+                    })
+                  }
+                />
+              ) : null
+            }
+            control={
+              <TranslucencySlider
+                value={settings.sidebarTranslucency}
+                onChange={(next) => updateSettings({ sidebarTranslucency: next })}
+                ariaLabel="Sidebar translucency level"
+              />
+            }
+          />
+
+          <SettingsRow
+            title="Main window translucency"
+            description="Adjust how transparent the main content area appears. Only applies when using a translucent theme on macOS."
+            resetAction={
+              settings.mainWindowTranslucency !== DEFAULT_MAIN_WINDOW_TRANSLUCENCY ? (
+                <SettingResetButton
+                  label="main window translucency"
+                  onClick={() =>
+                    updateSettings({
+                      mainWindowTranslucency: DEFAULT_MAIN_WINDOW_TRANSLUCENCY,
+                    })
+                  }
+                />
+              ) : null
+            }
+            control={
+              <TranslucencySlider
+                value={settings.mainWindowTranslucency}
+                onChange={(next) => updateSettings({ mainWindowTranslucency: next })}
+                ariaLabel="Main window translucency level"
+              />
+            }
+          />
+        </SettingsCard>
+
+        <SettingsCard>
+          <SettingsRow
             title="UI density"
             description="Control spacing in the sidebar, composer, chat gutters, and settings rows without changing font size."
             resetAction={
@@ -3352,6 +3409,42 @@ function SettingsRouteView() {
           defaultExpandedVersion={APP_VERSION}
         />
       </SidebarInset>
+    </div>
+  );
+}
+
+// ── Translucency slider ────────────────────────────────────────────────
+
+function TranslucencySlider({
+  value,
+  onChange,
+  ariaLabel,
+}: {
+  value: number;
+  onChange: (next: number) => void;
+  ariaLabel: string;
+}) {
+  const id = useId();
+  const fillPct = Math.max(0, Math.min(100, value));
+  return (
+    <div className="flex items-center gap-3">
+      <input
+        id={id}
+        type="range"
+        min={MIN_TRANSLUCENCY_PX}
+        max={MAX_TRANSLUCENCY_PX}
+        step={1}
+        value={value}
+        onChange={(event) => onChange(Number(event.target.value))}
+        aria-label={ariaLabel}
+        className="theme-slider h-1.5 w-44 cursor-pointer appearance-none rounded-full bg-transparent focus-visible:outline-none"
+        style={{
+          background: `linear-gradient(to right, var(--primary) 0%, var(--primary) ${fillPct}%, var(--input) ${fillPct}%, var(--input) 100%)`,
+        }}
+      />
+      <span className="w-7 text-right font-chat-code text-xs text-muted-foreground tabular-nums">
+        {value}%
+      </span>
     </div>
   );
 }

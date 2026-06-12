@@ -202,7 +202,7 @@ export const CODE_THEME_OPTIONS: readonly CodeThemeOption[] = [
   { id: "ayu", label: "Ayu", variants: ["dark"] },
   { id: "catppuccin", label: "Catppuccin", variants: ["light", "dark"] },
   { id: "codex", label: "Codex", variants: ["light", "dark"] },
-  { id: "dp-code", label: "Synara", variants: ["light", "dark"] },
+  { id: "dp-code", label: "Tyde", variants: ["light", "dark"] },
   { id: "dracula", label: "Dracula", variants: ["dark"] },
   { id: "everforest", label: "Everforest", variants: ["light", "dark"] },
   { id: "github", label: "GitHub", variants: ["light", "dark"] },
@@ -669,6 +669,10 @@ export function buildThemeCssVariables(
      *  content surface also becomes semi-transparent so the window vibrancy shows
      *  through the entire app. Has no effect on opaque windows. */
     fullWindowTranslucency?: boolean;
+    /** Sidebar translucency level (0-100). 0 = fully opaque, 100 = fully transparent. */
+    sidebarTranslucency?: number;
+    /** Main window translucency level (0-100). 0 = fully opaque, 100 = fully transparent. */
+    mainWindowTranslucency?: number;
   },
 ): ThemeCssVariableBuild {
   // The translucent shell relies on macOS window vibrancy as its backing
@@ -685,6 +689,9 @@ export function buildThemeCssVariables(
       ? "translucent"
       : "opaque";
   const fullWindowTranslucencyActive = userForcedTranslucency && material === "translucent";
+  // Normalize translucency values (0-100) with sensible defaults
+  const sidebarTranslucencyPercent = Math.max(0, Math.min(100, options?.sidebarTranslucency ?? 72));
+  const mainWindowTranslucencyPercent = Math.max(0, Math.min(100, options?.mainWindowTranslucency ?? 100));
   const resolvedTokens = buildResolvedThemeTokens(pack, variant, fullWindowTranslucencyActive);
   const codexVariables = resolvedTokens.codexVariables;
   const readCodexVariable = (name: string) => getRequiredVariable(codexVariables, name);
@@ -719,7 +726,9 @@ export function buildThemeCssVariables(
     "--accent-foreground": readCodexVariable("--color-text-foreground"),
     "--app-shell-background":
       material === "translucent"
-        ? "transparent"
+        ? mainWindowTranslucencyPercent < 100
+          ? `color-mix(in srgb, ${readCodexVariable("--color-background-surface-under")} ${mainWindowTranslucencyPercent}%, transparent)`
+          : "transparent"
         : readCodexVariable("--color-background-surface-under"),
     "--app-composer-focus-border": composerFocusBorder,
     // Frosted blur only when the shell is translucent (macOS). On an opaque
@@ -732,7 +741,9 @@ export function buildThemeCssVariables(
     "--app-chat-code-surface": chatCodeSurface,
     "--app-user-message-background": chatCodeSurface,
     "--app-sidebar-backdrop-filter":
-      material === "translucent" ? "blur(8px) saturate(135%)" : "none",
+      material === "translucent" && sidebarTranslucencyPercent > 0
+        ? `blur(${Math.round(8 * sidebarTranslucencyPercent / 100)}px) saturate(${Math.round(100 + 35 * sidebarTranslucencyPercent / 100)}%)`
+        : "none",
     // Settings mirrors the chat surface (opaque --color-background-surface) so every
     // settings element reads as outline-only. With an opaque page there is nothing to
     // frost, so we skip the backdrop blur (and its compositing cost) entirely.
@@ -747,9 +758,7 @@ export function buildThemeCssVariables(
           : "inset 0 1px 0 rgba(0,0,0,0.03)",
     "--app-sidebar-surface":
       material === "translucent"
-        ? variant === "dark"
-          ? `color-mix(in srgb, ${sidebarSurface} 72%, transparent)`
-          : `color-mix(in srgb, ${sidebarSurface} 64%, transparent)`
+        ? `color-mix(in srgb, ${sidebarSurface} ${sidebarTranslucencyPercent}%, transparent)`
         : sidebarSurface,
     // Always opaque so the settings page background matches the chat surface exactly,
     // regardless of window material.

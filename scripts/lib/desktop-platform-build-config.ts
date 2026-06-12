@@ -4,7 +4,7 @@
 // Depends on: Desktop packaging policy and electron-builder config shape.
 
 export const MICROPHONE_USAGE_DESCRIPTION =
-  "Synara Dev needs microphone access so you can record voice notes and transcribe them into the chat composer.";
+  "Tyde needs microphone access so you can record voice notes and transcribe them into the chat composer.";
 export const MAC_ENTITLEMENTS_PATH = "apps/desktop/resources/entitlements.mac.plist";
 export const MAC_INHERITED_ENTITLEMENTS_PATH =
   "apps/desktop/resources/entitlements.mac.inherit.plist";
@@ -89,12 +89,12 @@ export function createDesktopPlatformBuildConfig(
       ...nativePackaging,
       linux: {
         target: [input.target],
-        executableName: "synara-dev",
+        executableName: "tyde",
         icon: "icon.png",
         category: "Development",
         desktop: {
           entry: {
-            StartupWMClass: "synara-dev",
+            StartupWMClass: "tyde",
           },
         },
       },

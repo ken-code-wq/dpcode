@@ -51,7 +51,7 @@ run_command() {
 
 if [[ $# -eq 0 ]]; then
   echo "Select an option:"
-  select choice in install dev build start dmg prod q; do
+  select choice in install dev build start dmg prod "q to quit"; do
     if [[ -n "${choice:-}" ]]; then
       if [[ "$choice" == "q" ]]; then
         echo "Bye."

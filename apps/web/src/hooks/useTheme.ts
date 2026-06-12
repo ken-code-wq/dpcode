@@ -160,11 +160,19 @@ function applyThemeState(state: ThemeState, suppressTransitions = false) {
   // module-level applyThemeState() call (which runs before React mounts) can
   // still pick it up without depending on the React hook.
   let fullWindowTranslucency = false;
+  let sidebarTranslucency = 72;
+  let mainWindowTranslucency = 100;
   try {
     const raw = globalThis.localStorage?.getItem("synara:app-settings:v1");
     if (raw) {
       const parsed = JSON.parse(raw) as Record<string, unknown>;
       fullWindowTranslucency = parsed.fullWindowTranslucency === true;
+      if (typeof parsed.sidebarTranslucency === "number") {
+        sidebarTranslucency = parsed.sidebarTranslucency;
+      }
+      if (typeof parsed.mainWindowTranslucency === "number") {
+        mainWindowTranslucency = parsed.mainWindowTranslucency;
+      }
     }
   } catch {
     // ignore parse errors – fall through to default (false)
@@ -174,6 +182,8 @@ function applyThemeState(state: ThemeState, suppressTransitions = false) {
     electron: isElectron,
     isMac: isMacPlatform(typeof navigator === "undefined" ? "" : navigator.platform),
     fullWindowTranslucency,
+    sidebarTranslucency,
+    mainWindowTranslucency,
   });
 
   root.classList.toggle("dark", variant === "dark");

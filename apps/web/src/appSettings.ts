@@ -49,6 +49,10 @@ export const DEFAULT_CHAT_FONT_SIZE_PX = 13;
 export const MIN_TERMINAL_FONT_SIZE_PX = 10;
 export const MAX_TERMINAL_FONT_SIZE_PX = 22;
 export const DEFAULT_TERMINAL_FONT_SIZE_PX = 12;
+export const MIN_TRANSLUCENCY_PX = 0;
+export const MAX_TRANSLUCENCY_PX = 100;
+export const DEFAULT_SIDEBAR_TRANSLUCENCY = 72;
+export const DEFAULT_MAIN_WINDOW_TRANSLUCENCY = 100;
 
 // Terminal font is a free-form font-family value: the user can type any font
 // installed on their machine. An empty value keeps the bundled default stack
@@ -187,6 +191,8 @@ export const AppSettingsSchema = Schema.Struct({
   enableNativeFontSmoothing: Schema.Boolean.pipe(withDefaults(getDefaultNativeFontSmoothing)),
   enableTaskCompletionToasts: Schema.Boolean.pipe(withDefaults(() => true)),
   fullWindowTranslucency: Schema.Boolean.pipe(withDefaults(() => false)),
+  sidebarTranslucency: Schema.Number.pipe(withDefaults(() => DEFAULT_SIDEBAR_TRANSLUCENCY)),
+  mainWindowTranslucency: Schema.Number.pipe(withDefaults(() => DEFAULT_MAIN_WINDOW_TRANSLUCENCY)),
   enableSystemTaskCompletionNotifications: Schema.Boolean.pipe(withDefaults(() => true)),
   sidebarProjectSortOrder: SidebarProjectSortOrder.pipe(
     withDefaults(() => DEFAULT_SIDEBAR_PROJECT_SORT_ORDER),
@@ -361,6 +367,22 @@ export function normalizeTerminalFontSizePx(value: number | null | undefined): n
   );
 }
 
+export function normalizeSidebarTranslucency(value: number | null | undefined): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return DEFAULT_SIDEBAR_TRANSLUCENCY;
+  }
+
+  return Math.min(MAX_TRANSLUCENCY_PX, Math.max(MIN_TRANSLUCENCY_PX, Math.round(value)));
+}
+
+export function normalizeMainWindowTranslucency(value: number | null | undefined): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return DEFAULT_MAIN_WINDOW_TRANSLUCENCY;
+  }
+
+  return Math.min(MAX_TRANSLUCENCY_PX, Math.max(MIN_TRANSLUCENCY_PX, Math.round(value)));
+}
+
 export function normalizeTerminalFontFamily(value: string | null | undefined): string {
   // Free-form font-family text. Only strip characters that can't legitimately
   // appear in a CSS font-family value so the typed name can't break out of the
@@ -424,6 +446,8 @@ function normalizeAppSettings(settings: AppSettings): AppSettings {
     chatFontSizePx: normalizeChatFontSizePx(settings.chatFontSizePx),
     terminalFontSizePx: normalizeTerminalFontSizePx(settings.terminalFontSizePx),
     terminalFontFamily: normalizeTerminalFontFamily(settings.terminalFontFamily),
+    sidebarTranslucency: normalizeSidebarTranslucency(settings.sidebarTranslucency),
+    mainWindowTranslucency: normalizeMainWindowTranslucency(settings.mainWindowTranslucency),
     customCodexModels: normalizeCustomModelSlugs(settings.customCodexModels, "codex"),
     customClaudeModels: normalizeCustomModelSlugs(settings.customClaudeModels, "claudeAgent"),
     customCursorModels: normalizeCustomModelSlugs(settings.customCursorModels, "cursor"),

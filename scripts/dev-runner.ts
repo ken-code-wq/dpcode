@@ -15,7 +15,7 @@ const MAX_HASH_OFFSET = 3000;
 const MAX_PORT = 65535;
 
 export const DEFAULT_T3_HOME = Effect.map(Effect.service(Path.Path), (path) =>
-  path.join(homedir(), ".synara-dev"),
+  path.join(homedir(), ".tyde"),
 );
 
 const MODE_ARGS = {
