@@ -824,7 +824,7 @@ function handleFatalStartupError(stage: string, error: unknown): void {
   console.error(`[desktop] fatal startup error (${stage})`, error);
   if (!isQuitting) {
     isQuitting = true;
-    dialog.showErrorBox("Synara Dev failed to start", `Stage: ${stage}\n${message}${detail}`);
+    dialog.showErrorBox("Tyde failed to start", `Stage: ${stage}\n${message}${detail}`);
   }
   stopBackend();
   restoreStdIoCapture?.();
@@ -969,14 +969,14 @@ async function checkForUpdatesFromMenu(): Promise<void> {
     void dialog.showMessageBox({
       type: "info",
       title: "You're up to date!",
-      message: `Synara Dev ${updateState.currentVersion} is currently the newest version available.`,
+      message: `Tyde ${updateState.currentVersion} is currently the newest version available.`,
       buttons: ["OK"],
     });
   } else if (updateState.status === "downloading" || updateState.status === "available") {
     void dialog.showMessageBox({
       type: "info",
       title: "Update found",
-      message: "Synara Dev is preparing the update in the background.",
+      message: "Tyde is preparing the update in the background.",
       buttons: ["OK"],
     });
   } else if (updateState.status === "downloaded") {
@@ -1146,9 +1146,9 @@ function resolveNotificationIconPath(): string | null {
     return null;
   }
   if (process.platform === "win32") {
-    return resolveResourcePath("synara.png") ?? resolveIconPath("ico");
+    return resolveResourcePath("tyde.png") ?? resolveIconPath("ico");
   }
-  return resolveResourcePath("synara.png") ?? resolveIconPath("png");
+  return resolveResourcePath("tyde.png") ?? resolveIconPath("png");
 }
 
 // Keep the app badge aligned with desktop notifications that arrive off-focus.
@@ -1236,7 +1236,7 @@ function showDesktopNotification(input: {
  * Resolve the Electron userData directory path.
  *
  * Electron derives the default userData path from `productName` in
- * package.json. We override it to a clean lowercase Synara name while seeding
+ * package.json. We override it to a clean lowercase Tyde name while seeding
  * from legacy app profiles when needed.
  */
 function resolveUserDataPath(): string {
@@ -1247,12 +1247,12 @@ function resolveUserDataPath(): string {
     legacyPaths: resolveLegacyDesktopUserDataPaths({ appDataBase, isDevelopment }),
   });
   if (seedResult.status === "seeded") {
-    console.info("[desktop] Seeded Synara Electron profile from legacy profile", {
+    console.info("[desktop] Seeded Tyde Electron profile from legacy profile", {
       sourcePath: seedResult.sourcePath,
       targetPath: seedResult.targetPath,
     });
   } else if (seedResult.status === "seed-failed") {
-    console.warn("[desktop] Failed to seed Synara Electron profile from legacy profile", {
+    console.warn("[desktop] Failed to seed Tyde Electron profile from legacy profile", {
       sourcePath: seedResult.sourcePath,
       targetPath: seedResult.targetPath,
       error: seedResult.error,
@@ -1839,7 +1839,7 @@ function configureAutoUpdater(): void {
 
   scheduleUpdatePoll();
 }
-// Builds process-local Node args so provider/tool children do not inherit Synara's heap guard.
+// Builds process-local Node args so provider/tool children do not inherit Tyde's heap guard.
 function backendNodeArgs(): string[] {
   const configuredMaxOldSpaceMb =
     BACKEND_MAX_OLD_SPACE_ENV_KEYS.map((key) => process.env[key]).find(
@@ -2386,7 +2386,7 @@ function registerIpcHandlers(): void {
   registerDesktopVoiceTranscriptionHandler();
   startBrowserPerformanceLogging();
   void ensureBrowserUsePipeServer().catch((error) => {
-    console.warn("[Synara Dev browser] Failed to start browser-use native pipe", error);
+    console.warn("[Tyde browser] Failed to start browser-use native pipe", error);
   });
 
   registerBrowserIpcHandlers(ipcMain, browserManager);

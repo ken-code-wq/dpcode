@@ -58,7 +58,6 @@ import { Button } from "../ui/button";
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 import { buildExpandedImagePreview, ExpandedImagePreview } from "./ExpandedImagePreview";
 import { ProposedPlanCard } from "./ProposedPlanCard";
-import { ChangedFilesTree } from "./ChangedFilesTree";
 import { DiffStatLabel } from "./DiffStatLabel";
 import { ReviewChangesButton } from "./ReviewChangesButton";
 import { FileEntryIcon } from "./FileEntryIcon";
@@ -78,6 +77,7 @@ import {
   type StableMessagesTimelineRowsState,
 } from "./MessagesTimeline.logic";
 import { deriveInlineCommandCall } from "../../lib/toolCallLabel";
+import { openWorkspaceFileReference, useWorkspaceFileOpener } from "../../lib/workspaceFileOpener";
 import { isAgentActivityWorkEntry } from "./agentActivity.logic";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { TerminalContextInlineChip } from "./TerminalContextInlineChip";
@@ -1006,12 +1006,6 @@ export const MessagesTimeline = memo(function MessagesTimeline({
             hasGenericInlineFileChangeEntry && (turnSummary?.files.length ?? 0) > 0
               ? turnSummary!.files
               : [];
-          const inlineFileChangeDetailsAlreadyVisible =
-            inlineEditedFilesFromTurnSummary.length > 0 ||
-            visibleRenderableInlineToolEntries.some(
-              (workEntry) =>
-                isFileChangeWorkEntry(workEntry) && (workEntry.changedFiles?.length ?? 0) > 0,
-            );
           const assistantMeta = [
             formatShortTimestamp(row.message.createdAt, timestampFormat),
             inlineWorkSummary,
@@ -1373,49 +1367,33 @@ export const MessagesTimeline = memo(function MessagesTimeline({
                         </div>
                       </div>
                       <DisclosureRegion open={fileChangesExpanded}>
-                        {inlineFileChangeDetailsAlreadyVisible ? (
-                          <div className="px-3 py-2">
-                            <ChangedFilesTree
-                              turnId={turnSummary.turnId}
-                              files={checkpointFiles}
-                              allDirectoriesExpanded
-                              resolvedTheme={resolvedTheme}
-                              onOpenTurnDiff={onOpenTurnDiff}
-                            />
-                          </div>
-                        ) : (
-                          <>
-                            {firstCheckpointFiles.map((file) =>
-                              renderCheckpointFileRow(file, true),
+                        {firstCheckpointFiles.map((file) => renderCheckpointFileRow(file, true))}
+                        {overflowCheckpointFiles.length > 0 ? (
+                          <DisclosureRegion open={fileListExpanded}>
+                            {overflowCheckpointFiles.map((file) =>
+                              renderCheckpointFileRow(file, false),
                             )}
-                            {overflowCheckpointFiles.length > 0 ? (
-                              <DisclosureRegion open={fileListExpanded}>
-                                {overflowCheckpointFiles.map((file) =>
-                                  renderCheckpointFileRow(file, false),
-                                )}
-                              </DisclosureRegion>
-                            ) : null}
-                            {overflowCheckpointFiles.length > 0 ? (
-                              <button
-                                type="button"
-                                className="flex w-full items-center justify-start gap-1.5 border-t border-[color:var(--color-border-light)] bg-transparent px-3 py-2 font-system-ui font-normal text-muted-foreground transition-colors hover:bg-[var(--color-background-button-secondary-hover)] hover:text-foreground"
-                                style={{ fontSize: chatTypographyStyle.fontSize }}
-                                aria-expanded={fileListExpanded}
-                                onClick={() => toggleFileListExpanded(turnSummary.turnId)}
-                              >
-                                <DisclosureChevron open={fileListExpanded} />
-                                <span>
-                                  {fileListExpanded
-                                    ? "Show less"
-                                    : `Show ${overflowCheckpointFiles.length} more ${pluralize(
-                                        overflowCheckpointFiles.length,
-                                        "file",
-                                      )}`}
-                                </span>
-                              </button>
-                            ) : null}
-                          </>
-                        )}
+                          </DisclosureRegion>
+                        ) : null}
+                        {overflowCheckpointFiles.length > 0 ? (
+                          <button
+                            type="button"
+                            className="flex w-full items-center justify-start gap-1.5 border-t border-[color:var(--color-border-light)] bg-transparent px-3 py-2 font-system-ui font-normal text-muted-foreground transition-colors hover:bg-[var(--color-background-button-secondary-hover)] hover:text-foreground"
+                            style={{ fontSize: chatTypographyStyle.fontSize }}
+                            aria-expanded={fileListExpanded}
+                            onClick={() => toggleFileListExpanded(turnSummary.turnId)}
+                          >
+                            <DisclosureChevron open={fileListExpanded} />
+                            <span>
+                              {fileListExpanded
+                                ? "Show less"
+                                : `Show ${overflowCheckpointFiles.length} more ${pluralize(
+                                    overflowCheckpointFiles.length,
+                                    "file",
+                                  )}`}
+                            </span>
+                          </button>
+                        ) : null}
                       </DisclosureRegion>
                     </div>
                   );
@@ -2272,6 +2250,22 @@ const SimpleWorkEntryRow = memo(function SimpleWorkEntryRow(props: {
   const openAgentActivity = canOpenAgentActivity
     ? () => onOpenAgentActivity?.(workEntry.id)
     : undefined;
+  // File-read rows open the referenced file in the in-app viewer when the
+  // hosting surface provides an opener (right-dock file pane / editor pane).
+  const opener = useWorkspaceFileOpener();
+  const readFilePath =
+    opener !== null &&
+    !canOpenAgentActivity &&
+    workEntry.detail &&
+    (workEntry.requestKind === "file-read" || isFileReadToolEntry(workEntry))
+      ? extractFilePathFromDetail(workEntry.detail)
+      : null;
+  const canOpenReadFile = readFilePath !== null;
+  const openReadFile = readFilePath
+    ? () => openWorkspaceFileReference(opener, readFilePath)
+    : undefined;
+  const prefetchReadFile =
+    readFilePath && opener?.prefetchFile ? () => opener.prefetchFile?.(readFilePath) : undefined;
 
   // Use the text font size (matching the UI settings) for tool call rows
   const rowFontSizePx = textFontSizePx;
@@ -2579,10 +2573,11 @@ const SimpleWorkEntryRow = memo(function SimpleWorkEntryRow(props: {
           );
           const rowContent = (
             <AgentActivityOpenSurface
-              canOpen={canOpenAgentActivity}
+              canOpen={canOpenAgentActivity || canOpenReadFile}
               compact={compact}
-              title={hoverText}
-              onOpen={openAgentActivity}
+              title={canOpenReadFile ? (readFilePath ?? hoverText) : hoverText}
+              onOpen={openAgentActivity ?? openReadFile}
+              onHover={prefetchReadFile}
             >
               {rowContentChildren}
             </AgentActivityOpenSurface>
@@ -2610,6 +2605,8 @@ function AgentActivityOpenSurface(props: {
   canOpen: boolean;
   children: ReactNode;
   compact: boolean;
+  /** Warm-up hook fired on hover/focus so opening feels instant. */
+  onHover?: (() => void) | undefined;
   onOpen?: (() => void) | undefined;
   title?: string | undefined;
 }) {
@@ -2623,7 +2620,13 @@ function AgentActivityOpenSurface(props: {
 
   if (props.canOpen) {
     return (
-      <button type="button" className={className} title={props.title} onClick={props.onOpen}>
+      <button
+        type="button"
+        className={className}
+        title={props.title}
+        onClick={props.onOpen}
+        {...(props.onHover ? { onPointerEnter: props.onHover, onFocus: props.onHover } : {})}
+      >
         {props.children}
       </button>
     );

@@ -839,6 +839,30 @@ label:has(> select#reasoning-effort) select {
   margin-top: 0.38rem;
 }
 
+/* GFM task lists: drop the bullet and paint the checkbox into the list gutter
+   where the bullet would have been (GitHub-style). */
+.chat-markdown li.task-list-item {
+  list-style: none;
+}
+
+.chat-markdown .chat-markdown-task-checkbox {
+  width: 0.95em;
+  height: 0.95em;
+  margin: 0 0.4em 0.1em -1.4em;
+  vertical-align: middle;
+  accent-color: var(--primary);
+}
+
+.chat-markdown .chat-markdown-task-checkbox:not(:disabled) {
+  cursor: pointer;
+}
+
+.chat-markdown hr {
+  margin: 1.5rem 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+
 .chat-markdown a {
   color: var(--color-token-text-link-foreground);
   text-decoration: none;
@@ -1246,6 +1270,70 @@ label:has(> select#reasoning-effort) select {
   margin-top: 0;
 }
 
+/* Document typography for full-file markdown previews (dock file pane and
+   editor center pane share this wrapper). Scoped here so the chat transcript
+   keeps its compact message styling; Tailwind's preflight otherwise leaves
+   headings indistinguishable from body text. */
+.editor-markdown-preview .chat-markdown h1,
+.editor-markdown-preview .chat-markdown h2,
+.editor-markdown-preview .chat-markdown h3,
+.editor-markdown-preview .chat-markdown h4,
+.editor-markdown-preview .chat-markdown h5,
+.editor-markdown-preview .chat-markdown h6 {
+  margin: 1.5em 0 0.6em;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+
+.editor-markdown-preview .chat-markdown h1 {
+  font-size: 1.75em;
+  padding-bottom: 0.3em;
+  border-bottom: 1px solid var(--border);
+}
+
+.editor-markdown-preview .chat-markdown h2 {
+  font-size: 1.4em;
+  padding-bottom: 0.25em;
+  border-bottom: 1px solid var(--border);
+}
+
+.editor-markdown-preview .chat-markdown h3 {
+  font-size: 1.2em;
+}
+
+.editor-markdown-preview .chat-markdown h4 {
+  font-size: 1.05em;
+}
+
+.editor-markdown-preview .chat-markdown h5 {
+  font-size: 0.95em;
+}
+
+.editor-markdown-preview .chat-markdown h6 {
+  font-size: 0.9em;
+  color: var(--muted-foreground);
+}
+
+/* Documents breathe more than chat replies. */
+.editor-markdown-preview .chat-markdown p,
+.editor-markdown-preview .chat-markdown ul,
+.editor-markdown-preview .chat-markdown ol,
+.editor-markdown-preview .chat-markdown blockquote,
+.editor-markdown-preview .chat-markdown pre,
+.editor-markdown-preview .chat-markdown table {
+  margin: 0.85rem 0;
+}
+
+.editor-markdown-preview .chat-markdown ul,
+.editor-markdown-preview .chat-markdown ol {
+  padding-left: 1.5rem;
+}
+
+.editor-markdown-preview .chat-markdown li + li {
+  margin-top: 0.35rem;
+}
+
 /* Local image preview used by editor file and diff views. */
 .local-image-preview {
   position: relative;
@@ -1409,6 +1497,123 @@ label:has(> select#reasoning-effort) select {
   padding: 0.32rem 0.55rem;
   font-size: 0.74rem;
   font-weight: 500;
+}
+
+/* In-app PDF viewer (pdf.js canvas + text/link layers). The scroll area centers
+   a stack of page sheets over a muted backdrop, matching the rest of the chrome. */
+.pdf-viewer-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  background: var(--app-user-message-background);
+}
+
+.pdf-viewer-page {
+  position: relative;
+  flex: 0 0 auto;
+  /* Auto inline margins center the sheet but collapse to 0 once it is wider than
+     the viewport, so zoomed-in pages stay fully scroll-reachable on the left. */
+  margin-inline: auto;
+  background: #fff;
+  border: 1px solid color-mix(in srgb, var(--border), var(--foreground) 10%);
+  overflow: hidden;
+}
+
+.pdf-viewer-page__canvas {
+  display: block;
+}
+
+/* pdf.js text layer: transparent, selectable runs positioned over the canvas. */
+.pdf-viewer-page__text-layer {
+  --scale-factor: 1;
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  text-align: initial;
+  text-size-adjust: none;
+  forced-color-adjust: none;
+  transform-origin: 0 0;
+  line-height: 1;
+  overflow: clip;
+}
+
+.pdf-viewer-page__text-layer :is(span, br) {
+  color: transparent;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0 0;
+}
+
+.pdf-viewer-page__text-layer span.markedContent {
+  top: 0;
+  height: 0;
+}
+
+.pdf-viewer-page__text-layer ::selection {
+  background: color-mix(in srgb, var(--primary) 35%, transparent);
+}
+
+.pdf-viewer-page__text-layer .endOfContent {
+  position: absolute;
+  inset: 100% 0 0;
+  z-index: 0;
+  cursor: default;
+  user-select: none;
+  display: block;
+}
+
+.pdf-viewer-page__text-layer.selecting .endOfContent {
+  top: 0;
+}
+
+/* Clickable links (external URLs + internal page jumps) drawn over the canvas. */
+.pdf-viewer-page__link-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+}
+
+.pdf-viewer-page__link {
+  position: absolute;
+  display: block;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+
+.pdf-viewer-page__link:hover,
+.pdf-viewer-page__link:focus-visible {
+  background: color-mix(in srgb, var(--primary) 18%, transparent);
+  outline: none;
+}
+
+/* Per-page render failure marker: a single broken page should report itself
+   rather than blend into the white sheet. */
+.pdf-viewer-page__error {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 16px;
+  text-align: center;
+  color: var(--destructive);
+  font-size: 12px;
+}
+
+.pdf-viewer-page__error-detail {
+  max-width: 90%;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  word-break: break-word;
 }
 
 /* Generated image preview/download card rendered inline from markdown ![alt](file.png) */
