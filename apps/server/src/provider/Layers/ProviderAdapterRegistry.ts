@@ -23,6 +23,8 @@ import { GrokAdapter } from "../Services/GrokAdapter.ts";
 import { KiloAdapter } from "../Services/KiloAdapter.ts";
 import { OpenCodeAdapter } from "../Services/OpenCodeAdapter.ts";
 import { PiAdapter } from "../Services/PiAdapter.ts";
+import { OllamaAdapter } from "../Services/OllamaAdapter.ts";
+import { LmStudioAdapter } from "../Services/LmStudioAdapter.ts";
 
 export interface ProviderAdapterRegistryLiveOptions {
   readonly adapters?: ReadonlyArray<ProviderAdapterShape<ProviderAdapterError>>;
@@ -42,6 +44,8 @@ const makeProviderAdapterRegistry = (options?: ProviderAdapterRegistryLiveOption
             yield* KiloAdapter,
             yield* OpenCodeAdapter,
             yield* PiAdapter,
+            yield* OllamaAdapter,
+            yield* LmStudioAdapter,
           ];
     const byProvider = new Map(adapters.map((adapter) => [adapter.provider, adapter]));
 

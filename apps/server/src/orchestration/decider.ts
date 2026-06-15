@@ -1120,6 +1120,9 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
           : {}),
         ...(command.reviewTarget !== undefined ? { reviewTarget: command.reviewTarget } : {}),
         assistantDeliveryMode: command.assistantDeliveryMode ?? DEFAULT_ASSISTANT_DELIVERY_MODE,
+        ...(command.maxBufferedAssistantChars !== undefined
+          ? { maxBufferedAssistantChars: command.maxBufferedAssistantChars }
+          : {}),
         dispatchMode,
         runtimeMode: command.runtimeMode,
         interactionMode: command.interactionMode,
@@ -1192,6 +1195,9 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
             : {}),
           ...(command.reviewTarget !== undefined ? { reviewTarget: command.reviewTarget } : {}),
           assistantDeliveryMode: command.assistantDeliveryMode ?? DEFAULT_ASSISTANT_DELIVERY_MODE,
+          ...(command.maxBufferedAssistantChars !== undefined
+            ? { maxBufferedAssistantChars: command.maxBufferedAssistantChars }
+            : {}),
           dispatchMode: command.dispatchMode ?? "queue",
           runtimeMode: command.runtimeMode,
           interactionMode: command.interactionMode,
@@ -1376,6 +1382,9 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
             : {}),
           ...(command.assistantDeliveryMode !== undefined
             ? { assistantDeliveryMode: command.assistantDeliveryMode }
+            : {}),
+          ...(command.maxBufferedAssistantChars !== undefined
+            ? { maxBufferedAssistantChars: command.maxBufferedAssistantChars }
             : {}),
           runtimeMode: command.runtimeMode,
           interactionMode: command.interactionMode,

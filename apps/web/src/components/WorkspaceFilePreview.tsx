@@ -46,7 +46,6 @@ import {
   highlightCodeToHtmlWithFallback,
 } from "~/lib/syntaxHighlighting";
 import { cn } from "~/lib/utils";
-import { PencilIcon } from "~/lib/icons";
 import { readNativeApi } from "~/nativeApi";
 import ChatMarkdown from "./ChatMarkdown";
 import { FileLineCommentBox } from "./chat/FileLineCommentBox";
@@ -308,6 +307,10 @@ export interface WorkspaceFilePreviewProps {
   onReferenceInChat?: ((reference: ChatFileReference) => void) | undefined;
   onAskWhyInChat?: ((reference: ChatFileReference) => void) | undefined;
   onCommentInChat?: ((comment: FileCommentSelection) => void) | undefined;
+  onSelectFile?: ((path: string) => void) | undefined;
+  editorLine?: number | undefined;
+  autoEdit?: boolean | undefined;
+  compact?: boolean;
 }
 
 export function WorkspaceFilePreview(props: WorkspaceFilePreviewProps) {
@@ -316,7 +319,15 @@ export function WorkspaceFilePreview(props: WorkspaceFilePreviewProps) {
   const contentsRef = useRef<HTMLDivElement>(null);
   const taskWriteQueueRef = useRef<Promise<void>>(Promise.resolve());
   const latestTaskWriteVersionRef = useRef({ next: 0, byFile: new Map<string, number>() });
-  const { filePath, onAskWhyInChat, onCommentInChat, onReferenceInChat, workspaceRoot } = props;
+  const {
+    filePath,
+    onAskWhyInChat,
+    onCommentInChat,
+    onReferenceInChat,
+    workspaceRoot,
+    onSelectFile,
+    compact = false,
+  } = props;
   const queryClient = useQueryClient();
   const markdownPreviewDefault = props.markdownPreviewDefault ?? false;
   const fileIsImage = filePath !== null && isSupportedLocalImagePath(filePath);
@@ -325,10 +336,12 @@ export function WorkspaceFilePreview(props: WorkspaceFilePreviewProps) {
     filePath !== null && (fileIsImage || fileIsPdf) && isScratchWorkspacePath(filePath);
   const fileIsMarkdown = filePath !== null && isMarkdownPreviewablePath(filePath);
   const [markdownPreviewEnabled, setMarkdownPreviewEnabled] = useState(markdownPreviewDefault);
-  const [editing, setEditing] = useState(false);
+  const autoEdit = props.autoEdit ?? false;
+  const isEditable = filePath !== null && !fileIsImage && !fileIsPdf;
+  const [editing, setEditing] = useState(autoEdit && isEditable);
   useEffect(() => {
-    setEditing(false);
-  }, [filePath]);
+    setEditing(autoEdit && isEditable);
+  }, [filePath, autoEdit, isEditable]);
   const fileQuery = useQuery(
     projectReadFileQueryOptions({
       cwd: props.workspaceRoot,
@@ -511,32 +524,46 @@ export function WorkspaceFilePreview(props: WorkspaceFilePreviewProps) {
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-[var(--color-background-surface)]">
-      <WorkspaceFilePreviewHeader
-        workspaceRoot={props.workspaceRoot}
-        filePath={filePath}
-        isMarkdown={fileIsMarkdown}
-        markdownPreviewEnabled={showMarkdownPreview}
-        onMarkdownPreviewChange={handleMarkdownPreviewChange}
-        onReferenceInChat={onReferenceInChat}
-        onAskWhyInChat={onAskWhyInChat}
-        truncated={fileQuery.data?.truncated ?? false}
-      />
+      {!(editing && compact) && (
+        <WorkspaceFilePreviewHeader
+          workspaceRoot={props.workspaceRoot}
+          filePath={filePath}
+          isMarkdown={fileIsMarkdown}
+          markdownPreviewEnabled={showMarkdownPreview}
+          onMarkdownPreviewChange={handleMarkdownPreviewChange}
+          onReferenceInChat={onReferenceInChat}
+          onAskWhyInChat={onAskWhyInChat}
+          truncated={fileQuery.data?.truncated ?? false}
+          onEdit={
+            !fileIsImage && !fileIsMarkdown && !fileIsPdf ? () => setEditing(true) : undefined
+          }
+        />
+      )}
       {editing && !fileIsImage && !fileIsMarkdown && !fileIsPdf ? (
         <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
           {fileQuery.isLoading ? (
             <FilePreviewLoadingState />
           ) : fileQuery.error ? (
-            <PanelStateMessage density="compact" fill="flex" className="items-start justify-start p-3">
+            <PanelStateMessage
+              density="compact"
+              fill="flex"
+              className="items-start justify-start p-3"
+            >
               <p className="text-left text-[11px] text-destructive/85">
-                {fileQuery.error instanceof Error ? fileQuery.error.message : "Could not read file."}
+                {fileQuery.error instanceof Error
+                  ? fileQuery.error.message
+                  : "Could not read file."}
               </p>
             </PanelStateMessage>
           ) : (
             <MonacoFileEditor
-              filePath={filePath}
+              filePath={filePath ?? ""}
               contents={fileContents}
-              workspaceRoot={props.workspaceRoot}
+              workspaceRoot={props.workspaceRoot ?? ""}
               onClose={() => setEditing(false)}
+              onSelectFile={onSelectFile}
+              initialLine={props.editorLine}
+              compact={compact}
             />
           )}
         </div>
@@ -572,6 +599,11 @@ export function WorkspaceFilePreview(props: WorkspaceFilePreviewProps) {
           onMouseUp={previewSelectionAction.onContainerMouseUp}
           onMouseMove={lineCommenting.onContainerMouseMove}
           onMouseLeave={lineCommenting.onContainerMouseLeave}
+          onDoubleClick={() => {
+            if (!fileIsImage && !fileIsMarkdown && !fileIsPdf) {
+              setEditing(true);
+            }
+          }}
         >
           {showMarkdownPreview ? (
             <div className="editor-markdown-preview">

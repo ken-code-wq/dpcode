@@ -5,6 +5,7 @@ import type {
   ProjectWriteFileInput,
   ProjectWriteFileResult,
   ProjectDiscoverScriptsResult,
+  ProjectSearchContentResult,
   ProjectSearchEntriesResult,
   ProjectSearchLocalEntriesResult,
 } from "@t3tools/contracts";
@@ -41,6 +42,7 @@ export function invalidateProjectFileQueriesForCwds(
       queryClient.invalidateQueries({ queryKey: ["projects", "list-directories", cwd] as const }),
       queryClient.invalidateQueries({ queryKey: ["projects", "read-file", cwd] as const }),
       queryClient.invalidateQueries({ queryKey: ["projects", "search-entries", cwd] as const }),
+      queryClient.invalidateQueries({ queryKey: ["projects", "search-content", cwd] as const }),
     ]),
   );
 }
@@ -167,6 +169,33 @@ export function projectSearchEntriesQueryOptions(input: {
     enabled: (input.enabled ?? true) && input.cwd !== null && input.query.length > 0,
     staleTime: input.staleTime ?? DEFAULT_SEARCH_ENTRIES_STALE_TIME,
     placeholderData: (previous) => previous ?? EMPTY_SEARCH_ENTRIES_RESULT,
+  });
+}
+
+export function projectSearchContentQueryOptions(input: {
+  cwd: string | null;
+  query: string;
+  enabled?: boolean;
+  limit?: number;
+  staleTime?: number;
+}) {
+  const limit = input.limit ?? DEFAULT_SEARCH_ENTRIES_LIMIT;
+  return queryOptions<ProjectSearchContentResult>({
+    queryKey: ["projects", "search-content", input.cwd, input.query, limit] as const,
+    queryFn: async () => {
+      const api = ensureNativeApi();
+      if (!input.cwd) {
+        throw new Error("Workspace content search is unavailable.");
+      }
+      return api.projects.searchContent({
+        cwd: input.cwd,
+        query: input.query,
+        limit,
+      });
+    },
+    enabled: (input.enabled ?? true) && input.cwd !== null && input.query.length > 0,
+    staleTime: input.staleTime ?? DEFAULT_SEARCH_ENTRIES_STALE_TIME,
+    placeholderData: (previous) => previous ?? { results: [], truncated: false },
   });
 }
 

@@ -225,6 +225,8 @@ const PROVIDER_SELECT_OPTIONS = [
   "opencode",
   "kilo",
   "pi",
+  "ollama",
+  "lmstudio",
 ] as const satisfies readonly ProviderKind[];
 
 const TIMESTAMP_FORMAT_LABELS = {
@@ -252,7 +254,9 @@ type InstallBinarySettingsKey =
   | "grokBinaryPath"
   | "kiloBinaryPath"
   | "openCodeBinaryPath"
-  | "piBinaryPath";
+  | "piBinaryPath"
+  | "ollamaBinaryPath"
+  | "lmStudioBinaryPath";
 type InstallProviderSettings = {
   provider: ProviderKind;
   title: string;
@@ -269,7 +273,7 @@ type InstallProviderSettings = {
   apiEndpointKey?: "cursorApiEndpoint";
   apiEndpointPlaceholder?: string;
   apiEndpointDescription?: ReactNode;
-  serverUrlKey?: "kiloServerUrl" | "openCodeServerUrl";
+  serverUrlKey?: "kiloServerUrl" | "openCodeServerUrl" | "ollamaServerUrl" | "lmStudioServerUrl";
   serverUrlPlaceholder?: string;
   serverUrlDescription?: ReactNode;
   serverPasswordKey?: "kiloServerPassword" | "openCodeServerPassword";
@@ -282,7 +286,10 @@ type InstallProviderSettings = {
   agentDirDescription?: ReactNode;
 };
 
-const PROVIDER_VISIBILITY_OPTIONS: ReadonlyArray<{ provider: ProviderKind; title: string }> = [
+const PROVIDER_VISIBILITY_OPTIONS: ReadonlyArray<{
+  provider: ProviderKind;
+  title: string;
+}> = [
   { provider: "codex", title: PROVIDER_DISPLAY_NAMES.codex },
   { provider: "claudeAgent", title: PROVIDER_DISPLAY_NAMES.claudeAgent },
   { provider: "cursor", title: PROVIDER_DISPLAY_NAMES.cursor },
@@ -291,6 +298,8 @@ const PROVIDER_VISIBILITY_OPTIONS: ReadonlyArray<{ provider: ProviderKind; title
   { provider: "kilo", title: PROVIDER_DISPLAY_NAMES.kilo },
   { provider: "opencode", title: PROVIDER_DISPLAY_NAMES.opencode },
   { provider: "pi", title: PROVIDER_DISPLAY_NAMES.pi },
+  { provider: "ollama", title: PROVIDER_DISPLAY_NAMES.ollama },
+  { provider: "lmstudio", title: PROVIDER_DISPLAY_NAMES.lmstudio },
 ];
 
 // Pure helper kept at module scope so the toggle handler stays trivial and the
@@ -361,9 +370,15 @@ const INSTALL_PROVIDER_SETTINGS: readonly InstallProviderSettings[] = [
     provider: "codex",
     title: "Codex",
     docs: [
-      { label: "Install", href: "https://help.openai.com/en/articles/11096431" },
+      {
+        label: "Install",
+        href: "https://help.openai.com/en/articles/11096431",
+      },
       { label: "Update", href: "https://help.openai.com/en/articles/11096431" },
-      { label: "Config", href: "https://github.com/openai/codex/blob/main/docs/config.md" },
+      {
+        label: "Config",
+        href: "https://github.com/openai/codex/blob/main/docs/config.md",
+      },
     ],
     binaryPathKey: "codexBinaryPath",
     binaryPlaceholder: "Codex binary path",
@@ -380,8 +395,14 @@ const INSTALL_PROVIDER_SETTINGS: readonly InstallProviderSettings[] = [
     provider: "claudeAgent",
     title: "Claude",
     docs: [
-      { label: "Install", href: "https://code.claude.com/docs/en/installation" },
-      { label: "Update", href: "https://code.claude.com/docs/en/installation#update-claude-code" },
+      {
+        label: "Install",
+        href: "https://code.claude.com/docs/en/installation",
+      },
+      {
+        label: "Update",
+        href: "https://code.claude.com/docs/en/installation#update-claude-code",
+      },
       { label: "Config", href: "https://code.claude.com/docs/en/settings" },
     ],
     binaryPathKey: "claudeBinaryPath",
@@ -397,7 +418,10 @@ const INSTALL_PROVIDER_SETTINGS: readonly InstallProviderSettings[] = [
     title: "Cursor",
     docs: [
       { label: "Install", href: "https://docs.cursor.com/en/cli/installation" },
-      { label: "Update", href: "https://docs.cursor.com/en/cli/installation#updates" },
+      {
+        label: "Update",
+        href: "https://docs.cursor.com/en/cli/installation#updates",
+      },
       { label: "Config", href: "https://docs.cursor.com/en/cli/overview" },
     ],
     binaryPathKey: "cursorBinaryPath",
@@ -415,7 +439,10 @@ const INSTALL_PROVIDER_SETTINGS: readonly InstallProviderSettings[] = [
     provider: "gemini",
     title: "Gemini",
     docs: [
-      { label: "Install", href: "https://google-gemini.github.io/gemini-cli/docs/get-started/" },
+      {
+        label: "Install",
+        href: "https://google-gemini.github.io/gemini-cli/docs/get-started/",
+      },
       { label: "Update", href: "https://github.com/google-gemini/gemini-cli" },
       {
         label: "Config",
@@ -435,7 +462,10 @@ const INSTALL_PROVIDER_SETTINGS: readonly InstallProviderSettings[] = [
     title: "Grok",
     docs: [
       { label: "Install", href: "https://docs.x.ai/build/overview" },
-      { label: "Headless", href: "https://docs.x.ai/build/cli/headless-scripting" },
+      {
+        label: "Headless",
+        href: "https://docs.x.ai/build/cli/headless-scripting",
+      },
       { label: "Config", href: "https://docs.x.ai/build/overview" },
     ],
     binaryPathKey: "grokBinaryPath",
@@ -513,6 +543,43 @@ const INSTALL_PROVIDER_SETTINGS: readonly InstallProviderSettings[] = [
     agentDirPlaceholder: "Pi agent directory",
     agentDirDescription:
       "Optional custom Pi agent directory for auth, models, skills, and commands.",
+  },
+  {
+    provider: "ollama",
+    title: "Ollama",
+    docs: [
+      { label: "Install", href: "https://ollama.com" },
+      { label: "Docs", href: "https://github.com/ollama/ollama" },
+    ],
+    binaryPathKey: "ollamaBinaryPath",
+    binaryPlaceholder: "Ollama binary path",
+    binaryDescription: (
+      <>
+        Leave blank to use <code>ollama</code> from your PATH.
+      </>
+    ),
+    serverUrlKey: "ollamaServerUrl",
+    serverUrlPlaceholder: "http://127.0.0.1:11434",
+    serverUrlDescription: "Optional custom Ollama server URL. Defaults to http://127.0.0.1:11434.",
+  },
+  {
+    provider: "lmstudio",
+    title: "LM Studio",
+    docs: [
+      { label: "Install", href: "https://lmstudio.ai" },
+      { label: "Docs", href: "https://lmstudio.ai/docs" },
+    ],
+    binaryPathKey: "lmStudioBinaryPath",
+    binaryPlaceholder: "LM Studio binary path",
+    binaryDescription: (
+      <>
+        Leave blank to use <code>lmstudio</code> from your PATH.
+      </>
+    ),
+    serverUrlKey: "lmStudioServerUrl",
+    serverUrlPlaceholder: "http://127.0.0.1:1234",
+    serverUrlDescription:
+      "Optional custom LM Studio server URL. Defaults to http://127.0.0.1:1234.",
   },
 ];
 
@@ -684,6 +751,12 @@ function SettingsRouteView() {
       settings.openCodeServerPassword,
     ),
     pi: Boolean(settings.piBinaryPath || settings.piAgentDir),
+    ollama: Boolean(
+      settings.ollamaServerUrl || settings.ollamaBinaryPath || settings.customOllamaModels,
+    ),
+    lmstudio: Boolean(
+      settings.lmStudioBinaryPath || settings.lmStudioServerUrl || settings.customLmStudioModels,
+    ),
   });
   const [updatingProviders, setUpdatingProviders] = useState<ReadonlySet<ProviderKind>>(
     () => new Set(),
@@ -701,6 +774,8 @@ function SettingsRouteView() {
     kilo: "",
     opencode: "",
     pi: "",
+    ollama: "",
+    lmstudio: "",
   });
   const [customModelErrorByProvider, setCustomModelErrorByProvider] = useState<
     Partial<Record<ProviderKind, string | null>>
@@ -761,6 +836,10 @@ function SettingsRouteView() {
   const openCodeServerPassword = settings.openCodeServerPassword;
   const piBinaryPath = settings.piBinaryPath;
   const piAgentDir = settings.piAgentDir;
+  const ollamaBinaryPath = settings.ollamaBinaryPath;
+  const ollamaServerUrl = settings.ollamaServerUrl;
+  const lmStudioBinaryPath = settings.lmStudioBinaryPath;
+  const lmStudioServerUrl = settings.lmStudioServerUrl;
   const keybindingsConfigPath = serverConfigQuery.data?.keybindingsConfigPath ?? null;
   const availableEditors = serverConfigQuery.data?.availableEditors;
   const providerStatusByProvider = useMemo(
@@ -850,6 +929,8 @@ function SettingsRouteView() {
     customOpenCodeModels,
     textGenerationModel,
     textGenerationProvider,
+    customLmStudioModels,
+    customOllamaModels,
   } = settings;
   const gitTextGenerationModelOptions = useMemo(
     () =>
@@ -859,6 +940,8 @@ function SettingsRouteView() {
         customOpenCodeModels,
         textGenerationModel,
         textGenerationProvider,
+        customLmStudioModels,
+        customOllamaModels,
       }),
     [
       customCodexModels,
@@ -961,8 +1044,12 @@ function SettingsRouteView() {
     defaults.enableSystemTaskCompletionNotifications
       ? ["Desktop notifications"]
       : []),
-    ...(settings.enableAssistantStreaming !== defaults.enableAssistantStreaming
+    ...(settings.enableAssistantStreaming !== defaults.enableAssistantStreaming ||
+    settings.assistantDeliveryMode !== defaults.assistantDeliveryMode
       ? ["Assistant output"]
+      : []),
+    ...(settings.maxBufferedAssistantChars !== defaults.maxBufferedAssistantChars
+      ? ["Buffer size"]
       : []),
     ...(settings.diffWordWrap !== defaults.diffWordWrap ? ["Diff line wrapping"] : []),
     ...(settings.enableComposerSuggestions !== defaults.enableComposerSuggestions
@@ -1109,7 +1196,9 @@ function SettingsRouteView() {
       }
       setUpdatingProviders((current) => new Set(current).add(provider));
       try {
-        const result = await ensureNativeApi().server.updateProvider({ provider });
+        const result = await ensureNativeApi().server.updateProvider({
+          provider,
+        });
         const refreshedProvider = result.providers.find((status) => status.provider === provider);
         const failureMessage = providerUpdateFailureMessage(refreshedProvider);
         if (failureMessage) {
@@ -1172,6 +1261,8 @@ function SettingsRouteView() {
       kilo: false,
       opencode: false,
       pi: false,
+      ollama: false,
+      lmstudio: false,
     });
     setSelectedCustomModelProvider("codex");
     setCustomModelInputByProvider({
@@ -1183,6 +1274,8 @@ function SettingsRouteView() {
       kilo: "",
       opencode: "",
       pi: "",
+      ollama: "",
+      lmstudio: "",
     });
     setCustomModelErrorByProvider({});
     setShowAllCustomModels(false);
@@ -1222,7 +1315,11 @@ function SettingsRouteView() {
     const body = "Notification test for chats and terminal agents.";
 
     if (window.desktopBridge) {
-      const shown = await window.desktopBridge.notifications.show({ title, body, silent: false });
+      const shown = await window.desktopBridge.notifications.show({
+        title,
+        body,
+        silent: false,
+      });
       toastManager.add({
         type: shown ? "success" : "warning",
         title: shown ? "Test notification sent" : "Notifications unavailable",
@@ -1244,7 +1341,10 @@ function SettingsRouteView() {
       return;
     }
 
-    const notification = new Notification(title, { body, tag: "synara:test-notification" });
+    const notification = new Notification(title, {
+      body,
+      tag: "synara:test-notification",
+    });
     notification.addEventListener("click", () => {
       window.focus();
     });
@@ -1484,7 +1584,9 @@ function SettingsRouteView() {
             <SettingResetButton
               label={resetLabel}
               onClick={() =>
-                updateSettings({ [settingKey]: defaults[settingKey] } as Partial<AppSettings>)
+                updateSettings({
+                  [settingKey]: defaults[settingKey],
+                } as Partial<AppSettings>)
               }
             />
           ) : null
@@ -1493,7 +1595,9 @@ function SettingsRouteView() {
           <Switch
             checked={settings[settingKey]}
             onCheckedChange={(checked) =>
-              updateSettings({ [settingKey]: Boolean(checked) } as Partial<AppSettings>)
+              updateSettings({
+                [settingKey]: Boolean(checked),
+              } as Partial<AppSettings>)
             }
             aria-label={ariaLabel}
           />
@@ -2179,13 +2283,78 @@ function SettingsRouteView() {
   const renderBehaviorPanel = () => (
     <div className="space-y-6">
       <SettingsSection title="Runtime behavior">
-        {renderBooleanSettingRow({
-          settingKey: "enableAssistantStreaming",
-          title: "Assistant output",
-          description: "Show token-by-token output while a response is in progress.",
-          resetLabel: "assistant output",
-          ariaLabel: "Stream assistant messages",
-        })}
+        <SettingsRow
+          title="Assistant output mode"
+          description="Stream text token-by-token (instant) or buffer it (fewer UI updates)."
+          resetAction={
+            (settings.assistantDeliveryMode ?? undefined) !== undefined ||
+            settings.enableAssistantStreaming !== defaults.enableAssistantStreaming ? (
+              <SettingResetButton
+                label="delivery mode"
+                onClick={() =>
+                  updateSettings({
+                    assistantDeliveryMode: undefined,
+                    enableAssistantStreaming: defaults.enableAssistantStreaming,
+                  })
+                }
+              />
+            ) : null
+          }
+          control={
+            <SettingsSegmentedControl
+              value={
+                settings.assistantDeliveryMode ??
+                (settings.enableAssistantStreaming ? "streaming" : "buffered")
+              }
+              onValueChange={(value: "buffered" | "streaming") =>
+                updateSettings({ assistantDeliveryMode: value })
+              }
+              options={[
+                { value: "buffered", label: "Buffered" },
+                { value: "streaming", label: "Streaming" },
+              ]}
+              ariaLabel="Assistant output mode"
+            />
+          }
+        />
+
+        {(settings.assistantDeliveryMode ??
+          (settings.enableAssistantStreaming ? "streaming" : "buffered")) === "buffered" && (
+          <SettingsRow
+            title="Buffer size (chars)"
+            description="Characters to accumulate before flushing to the UI. Smaller values mean more frequent updates."
+            resetAction={
+              settings.maxBufferedAssistantChars !== defaults.maxBufferedAssistantChars ? (
+                <SettingResetButton
+                  label="buffer size"
+                  onClick={() =>
+                    updateSettings({
+                      maxBufferedAssistantChars: defaults.maxBufferedAssistantChars,
+                    })
+                  }
+                />
+              ) : null
+            }
+            control={
+              <Input
+                type="number"
+                min={500}
+                max={96000}
+                step={500}
+                size="sm"
+                variant="soft"
+                className="w-28"
+                value={String(settings.maxBufferedAssistantChars)}
+                onChange={(e) => {
+                  const val = Number.parseInt(e.target.value, 10);
+                  if (!Number.isNaN(val) && val >= 500 && val <= 96000) {
+                    updateSettings({ maxBufferedAssistantChars: val });
+                  }
+                }}
+              />
+            }
+          />
+        )}
 
         {renderBooleanSettingRow({
           settingKey: "diffWordWrap",
@@ -2825,6 +2994,8 @@ function SettingsRouteView() {
                     kilo: false,
                     opencode: false,
                     pi: false,
+                    ollama: false,
+                    lmstudio: false,
                   });
                 }}
               />
@@ -2855,12 +3026,18 @@ function SettingsRouteView() {
                               : providerSettings.provider === "pi"
                                 ? settings.piBinaryPath !== defaults.piBinaryPath ||
                                   settings.piAgentDir !== defaults.piAgentDir
-                                : settings.openCodeBinaryPath !== defaults.openCodeBinaryPath ||
-                                  settings.openCodeExperimentalWebSockets !==
-                                    defaults.openCodeExperimentalWebSockets ||
-                                  settings.openCodeServerUrl !== defaults.openCodeServerUrl ||
-                                  settings.openCodeServerPassword !==
-                                    defaults.openCodeServerPassword;
+                                : providerSettings.provider === "ollama"
+                                  ? settings.ollamaBinaryPath !== defaults.ollamaBinaryPath ||
+                                    settings.ollamaServerUrl !== defaults.ollamaServerUrl
+                                  : providerSettings.provider === "lmstudio"
+                                    ? settings.lmStudioBinaryPath !== defaults.lmStudioBinaryPath ||
+                                      settings.lmStudioServerUrl !== defaults.lmStudioServerUrl
+                                    : settings.openCodeBinaryPath !== defaults.openCodeBinaryPath ||
+                                      settings.openCodeExperimentalWebSockets !==
+                                        defaults.openCodeExperimentalWebSockets ||
+                                      settings.openCodeServerUrl !== defaults.openCodeServerUrl ||
+                                      settings.openCodeServerPassword !==
+                                        defaults.openCodeServerPassword;
                 const binaryPathValue =
                   providerSettings.binaryPathKey === "claudeBinaryPath"
                     ? claudeBinaryPath
@@ -2876,7 +3053,11 @@ function SettingsRouteView() {
                               ? openCodeBinaryPath
                               : providerSettings.binaryPathKey === "piBinaryPath"
                                 ? piBinaryPath
-                                : codexBinaryPath;
+                                : providerSettings.binaryPathKey === "ollamaBinaryPath"
+                                  ? ollamaBinaryPath
+                                  : providerSettings.binaryPathKey === "lmStudioBinaryPath"
+                                    ? lmStudioBinaryPath
+                                    : codexBinaryPath;
                 const providerStatus = providerStatusByProvider.get(providerSettings.provider);
                 const showProviderUpdateStatus = providerStatus
                   ? shouldShowProviderUpdateStatus({
@@ -3032,10 +3213,24 @@ function SettingsRouteView() {
                                               ? { kiloBinaryPath: nextValue }
                                               : providerSettings.binaryPathKey ===
                                                   "openCodeBinaryPath"
-                                                ? { openCodeBinaryPath: nextValue }
+                                                ? {
+                                                    openCodeBinaryPath: nextValue,
+                                                  }
                                                 : providerSettings.binaryPathKey === "piBinaryPath"
                                                   ? { piBinaryPath: nextValue }
-                                                  : { codexBinaryPath: nextValue },
+                                                  : providerSettings.binaryPathKey ===
+                                                      "ollamaBinaryPath"
+                                                    ? {
+                                                        ollamaBinaryPath: nextValue,
+                                                      }
+                                                    : providerSettings.binaryPathKey ===
+                                                        "lmStudioBinaryPath"
+                                                      ? {
+                                                          lmStudioBinaryPath: nextValue,
+                                                        }
+                                                      : {
+                                                          codexBinaryPath: nextValue,
+                                                        },
                                   )
                                 }
                                 placeholder={providerSettings.binaryPlaceholder}
@@ -3152,13 +3347,21 @@ function SettingsRouteView() {
                                   value={
                                     providerSettings.serverUrlKey === "kiloServerUrl"
                                       ? kiloServerUrl
-                                      : openCodeServerUrl
+                                      : providerSettings.serverUrlKey === "ollamaServerUrl"
+                                        ? ollamaServerUrl
+                                        : providerSettings.serverUrlKey === "lmStudioServerUrl"
+                                          ? lmStudioServerUrl
+                                          : openCodeServerUrl
                                   }
                                   onCommit={(nextValue) =>
                                     updateSettings(
                                       providerSettings.serverUrlKey === "kiloServerUrl"
                                         ? { kiloServerUrl: nextValue }
-                                        : { openCodeServerUrl: nextValue },
+                                        : providerSettings.serverUrlKey === "ollamaServerUrl"
+                                          ? { ollamaServerUrl: nextValue }
+                                          : providerSettings.serverUrlKey === "lmStudioServerUrl"
+                                            ? { lmStudioServerUrl: nextValue }
+                                            : { openCodeServerUrl: nextValue },
                                     )
                                   }
                                   placeholder={providerSettings.serverUrlPlaceholder}

@@ -26,7 +26,11 @@ const makeProviderTextGeneration = Effect.gen(function* () {
     if (input.modelSelection?.provider === "kilo") {
       return kiloTextGeneration;
     }
-    if (input.modelSelection?.provider === "opencode") {
+    if (
+      input.modelSelection?.provider === "opencode" ||
+      input.modelSelection?.provider === "ollama" ||
+      input.modelSelection?.provider === "lmstudio"
+    ) {
       return openCodeTextGeneration;
     }
     return parseOpenCodeModelSlug(input.model) !== null

@@ -30,6 +30,7 @@ import {
   DiffIcon,
   PanelRightCloseIcon,
   SearchIcon,
+  PluginIcon,
 } from "~/lib/icons";
 import {
   useDesktopTopBarTrafficLightGutterClassName,
@@ -45,6 +46,7 @@ import { showFileReferenceContextMenu } from "~/lib/fileReferenceContextMenu";
 import {
   projectListDirectoriesQueryOptions,
   projectReadFileQueryOptions,
+  projectSearchContentQueryOptions,
   projectSearchEntriesQueryOptions,
 } from "~/lib/projectReactQuery";
 import {
@@ -72,9 +74,11 @@ import { ProjectMenuPicker, type ProjectMenuPickerOption } from "./ProjectMenuPi
 import { SearchInput } from "./ui/search-input";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
 import { WorkspaceFilePreview } from "./WorkspaceFilePreview";
+import { EditorQuickOpen } from "./EditorQuickOpen";
+import { WorkspaceExtensionsSidebar } from "./WorkspaceExtensionsSidebar";
 
 type EditorCenterMode = "file" | "diff";
-type EditorActivityBarItem = EditorCenterMode | "search";
+type EditorActivityBarItem = EditorCenterMode | "search" | "extensions";
 
 const EDITOR_EXPLORER_HIDDEN_DIRECTORY_NAMES = new Set([
   ".cache",
@@ -101,6 +105,45 @@ const EDITOR_CHAT_PANE_DEFAULT_WIDTH = 384;
 const EDITOR_CHAT_PANE_MIN_WIDTH = 320;
 const EDITOR_CHAT_PANE_MAX_WIDTH = 600;
 const EDITOR_CHAT_PANE_KEYBOARD_STEP = 24;
+
+const EDITOR_SIDEBAR_WIDTH_STORAGE_KEY = "synara.editor.sidebarWidth";
+const EDITOR_SIDEBAR_DEFAULT_WIDTH = 224;
+const EDITOR_SIDEBAR_MIN_WIDTH = 180;
+const EDITOR_SIDEBAR_MAX_WIDTH = 450;
+const EDITOR_SIDEBAR_KEYBOARD_STEP = 16;
+
+function clampEditorSidebarWidth(width: number): number {
+  return Math.min(EDITOR_SIDEBAR_MAX_WIDTH, Math.max(EDITOR_SIDEBAR_MIN_WIDTH, Math.round(width)));
+}
+
+function readStoredEditorSidebarWidth(): number {
+  if (typeof window === "undefined") {
+    return EDITOR_SIDEBAR_DEFAULT_WIDTH;
+  }
+
+  try {
+    const rawValue = window.localStorage.getItem(EDITOR_SIDEBAR_WIDTH_STORAGE_KEY);
+    const parsed = rawValue === null ? Number.NaN : Number.parseFloat(rawValue);
+    return Number.isFinite(parsed) ? clampEditorSidebarWidth(parsed) : EDITOR_SIDEBAR_DEFAULT_WIDTH;
+  } catch {
+    return EDITOR_SIDEBAR_DEFAULT_WIDTH;
+  }
+}
+
+function storeEditorSidebarWidth(width: number): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(
+      EDITOR_SIDEBAR_WIDTH_STORAGE_KEY,
+      String(clampEditorSidebarWidth(width)),
+    );
+  } catch {
+    // Best-effort preference persistence only.
+  }
+}
 // Mirrors the composer mention search: debounce keystrokes so they don't fan
 // out into fuzzy-search RPCs, and cap results to keep the sidebar light.
 const EDITOR_SEARCH_QUERY_DEBOUNCE_MS = 120;
@@ -113,6 +156,8 @@ interface EditorWorkspaceViewProps {
   currentProjectId?: ProjectId | null;
   projectOptions?: ReadonlyArray<ProjectMenuPickerOption>;
   selectedFilePath: string | null;
+  openFiles?: ReadonlyArray<string> | undefined;
+  editorLine?: number | undefined;
   expandedDirectories: ReadonlySet<string>;
   centerMode: EditorCenterMode;
   diffFiles: ReadonlyArray<FileDiffMetadata>;
@@ -121,7 +166,8 @@ interface EditorWorkspaceViewProps {
   diffOptionsControl?: ReactNode;
   diffPanel: ReactNode;
   chatPanel: ReactNode;
-  onSelectFile: (path: string) => void;
+  onSelectFile: (path: string, lineNumber?: number) => void;
+  onCloseFile?: ((path: string) => void) | undefined;
   onSelectDiffFile: (path: string) => void;
   onToggleDirectory: (path: string) => void;
   onCenterModeChange: (mode: EditorCenterMode) => void;
@@ -482,7 +528,10 @@ function DiffFileRow(props: {
       onClick={() => props.onSelectFile(filePath)}
       onContextMenu={(event) => {
         event.preventDefault();
-        props.onFileContextMenu(filePath, { x: event.clientX, y: event.clientY });
+        props.onFileContextMenu(filePath, {
+          x: event.clientX,
+          y: event.clientY,
+        });
       }}
     >
       <FileEntryIcon
@@ -551,7 +600,7 @@ function DiffFilesSidebar(props: {
   );
 
   return (
-    <aside className="flex min-h-[11rem] w-full shrink-0 flex-col border-b border-border/65 bg-[var(--color-background-surface)] lg:h-full lg:w-56 lg:border-b-0 lg:border-r">
+    <aside className="flex min-h-[11rem] w-full shrink-0 flex-col border-b border-border/65 bg-[var(--color-background-surface)] lg:h-full lg:w-[var(--editor-sidebar-width,224px)] lg:border-b-0 lg:border-r">
       <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border/65 px-3">
         <DiffIcon className="size-3.5 shrink-0 text-muted-foreground" />
         <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-foreground/86">
@@ -619,12 +668,16 @@ function WorkspaceFilesSidebar(props: {
   const { onReferenceInChat } = props;
   const handleEntryContextMenu = useCallback(
     (entry: ProjectFileSystemEntry, position: { x: number; y: number }) => {
-      void showFileReferenceContextMenu({ path: entry.path, position, onReferenceInChat });
+      void showFileReferenceContextMenu({
+        path: entry.path,
+        position,
+        onReferenceInChat,
+      });
     },
     [onReferenceInChat],
   );
   return (
-    <aside className="flex min-h-[11rem] w-full shrink-0 flex-col border-b border-border/65 bg-[var(--color-background-surface)] lg:h-full lg:w-56 lg:border-b-0 lg:border-r">
+    <aside className="flex min-h-[11rem] w-full shrink-0 flex-col border-b border-border/65 bg-[var(--color-background-surface)] lg:h-full lg:w-[var(--editor-sidebar-width,224px)] lg:border-b-0 lg:border-r">
       <div className="min-h-0 flex-1 overflow-auto px-1 py-1">
         {props.workspaceRoot ? (
           <WorkspaceDirectory
@@ -699,10 +752,9 @@ export function WorkspaceSearchSidebar(props: {
   query: string;
   onQueryChange: (query: string) => void;
   selectedFilePath: string | null;
-  onSelectFile: (path: string) => void;
+  onSelectFile: (path: string, lineNumber?: number) => void;
   onReferenceInChat: ((reference: ChatFileReference) => void) | undefined;
 }) {
-  const prefetchEntry = useExplorerEntryPrefetch(props.workspaceRoot);
   const { onQueryChange, onReferenceInChat, onSelectFile } = props;
   const handleEntryContextMenu = useCallback(
     (path: string, position: { x: number; y: number }) => {
@@ -715,21 +767,16 @@ export function WorkspaceSearchSidebar(props: {
   });
   const inputQuery = props.query.trim();
   const trimmedQuery = debouncedQuery.trim();
-  const entriesQuery = useQuery(
-    projectSearchEntriesQueryOptions({
+  const searchResultsQuery = useQuery(
+    projectSearchContentQueryOptions({
       cwd: props.workspaceRoot,
       query: trimmedQuery,
-      kind: "file",
       limit: EDITOR_SEARCH_RESULTS_LIMIT,
     }),
   );
-  // Results are tied to the debounced query. While the user is ahead of that
-  // query, keep old results non-selectable so Enter cannot open a stale match.
-  const searchResultsPending = inputQuery !== trimmedQuery || entriesQuery.isPlaceholderData;
+  const searchResultsPending = inputQuery !== trimmedQuery || searchResultsQuery.isPlaceholderData;
   const searchResultsCurrent = !searchResultsPending;
-  const fileMatches = searchResultsCurrent
-    ? (entriesQuery.data?.entries ?? EMPTY_WORKSPACE_SEARCH_FILE_MATCHES)
-    : EMPTY_WORKSPACE_SEARCH_FILE_MATCHES;
+  const searchResults = searchResultsCurrent ? (searchResultsQuery.data?.results ?? []) : [];
   const handleInputKeyDown = useCallback(
     (event: ReactKeyboardEvent<HTMLInputElement>) => {
       if (event.key === "Enter") {
@@ -737,9 +784,10 @@ export function WorkspaceSearchSidebar(props: {
         if (!searchResultsCurrent) {
           return;
         }
-        const topMatch = fileMatches[0];
-        if (topMatch) {
-          onSelectFile(topMatch.path);
+        const topResult = searchResults[0];
+        if (topResult) {
+          const topMatch = topResult.matches[0];
+          onSelectFile(topResult.path, topMatch?.lineNumber);
         }
         return;
       }
@@ -748,11 +796,11 @@ export function WorkspaceSearchSidebar(props: {
         onQueryChange("");
       }
     },
-    [fileMatches, onQueryChange, onSelectFile, props.query.length, searchResultsCurrent],
+    [searchResults, onQueryChange, onSelectFile, props.query.length, searchResultsCurrent],
   );
 
   return (
-    <aside className="flex min-h-[11rem] w-full shrink-0 flex-col border-b border-border/65 bg-[var(--color-background-surface)] lg:h-full lg:w-56 lg:border-b-0 lg:border-r">
+    <aside className="flex min-h-[11rem] w-full shrink-0 flex-col border-b border-border/65 bg-[var(--color-background-surface)] lg:h-full lg:w-[var(--editor-sidebar-width,224px)] lg:border-b-0 lg:border-r">
       <div className="shrink-0 border-b border-border/65 p-2">
         <SearchInput
           value={props.query}
@@ -760,8 +808,8 @@ export function WorkspaceSearchSidebar(props: {
           spellCheck={false}
           autoCorrect="off"
           autoCapitalize="off"
-          placeholder="Search files..."
-          aria-label="Search files"
+          placeholder="Search in project..."
+          aria-label="Search project"
           onChange={(event) => onQueryChange(event.target.value)}
           onKeyDown={handleInputKeyDown}
         />
@@ -769,7 +817,7 @@ export function WorkspaceSearchSidebar(props: {
       <div
         className={cn(
           "min-h-0 flex-1 overflow-auto px-1 py-1",
-          fileMatches.length === 0 && "flex flex-col",
+          searchResults.length === 0 && "flex flex-col",
         )}
       >
         {!props.workspaceRoot ? (
@@ -778,38 +826,75 @@ export function WorkspaceSearchSidebar(props: {
           </PanelStateMessage>
         ) : inputQuery.length === 0 ? (
           <PanelStateMessage density="compact" fill="flex">
-            <p>Search files by name or path.</p>
+            <p>Search in project content.</p>
           </PanelStateMessage>
-        ) : searchResultsCurrent && entriesQuery.error ? (
+        ) : searchResultsCurrent && searchResultsQuery.error ? (
           <PanelStateMessage density="compact" fill="flex">
             <p className="text-destructive/85">
-              {entriesQuery.error instanceof Error
-                ? entriesQuery.error.message
-                : "Could not search files."}
+              {searchResultsQuery.error instanceof Error
+                ? searchResultsQuery.error.message
+                : "Could not search project."}
             </p>
           </PanelStateMessage>
-        ) : fileMatches.length === 0 ? (
-          searchResultsPending || entriesQuery.isFetching ? (
+        ) : searchResults.length === 0 ? (
+          searchResultsPending || searchResultsQuery.isFetching ? (
             <ExplorerLoadingRows depth={0} />
           ) : (
             <PanelStateMessage density="compact" fill="flex">
-              <p>No matching files.</p>
+              <p>No matches found.</p>
             </PanelStateMessage>
           )
         ) : (
-          fileMatches.map((entry) => (
-            <WorkspaceSearchResultRow
-              key={entry.path}
-              entry={entry}
-              selected={entry.path === props.selectedFilePath}
-              onSelectFile={onSelectFile}
-              onPrefetchEntry={prefetchEntry}
-              onEntryContextMenu={handleEntryContextMenu}
-            />
-          ))
+          searchResults.map((result) => {
+            const { dir, name } = splitRepoRelativePath(result.path);
+            return (
+              <div key={result.path} className="mb-2">
+                <div
+                  className="flex items-center gap-1.5 px-2 py-1 text-[11px] font-semibold text-foreground/85 cursor-pointer hover:bg-[var(--color-background-button-secondary-hover)] rounded-md"
+                  onClick={() => onSelectFile(result.path)}
+                  onContextMenu={(event) => {
+                    event.preventDefault();
+                    handleEntryContextMenu(result.path, {
+                      x: event.clientX,
+                      y: event.clientY,
+                    });
+                  }}
+                >
+                  <FileEntryIcon
+                    pathValue={result.path}
+                    kind="file"
+                    className="size-3.5 shrink-0 opacity-75"
+                  />
+                  <span className="truncate font-medium">{name}</span>
+                  {dir ? (
+                    <span className="min-w-0 truncate text-[10px] text-muted-foreground/55 ml-1">
+                      {dir}
+                    </span>
+                  ) : null}
+                </div>
+                <div className="mt-0.5 space-y-0.5">
+                  {result.matches.map((match) => (
+                    <button
+                      key={`${match.lineNumber}-${match.lineContent}`}
+                      type="button"
+                      className="flex w-full min-w-0 cursor-pointer items-start gap-2 rounded-md px-4 py-0.5 text-left text-[11px] text-foreground/78 hover:bg-[var(--color-background-button-secondary-hover)] hover:text-foreground"
+                      onClick={() => onSelectFile(result.path, match.lineNumber)}
+                    >
+                      <span className="shrink-0 text-muted-foreground/50 select-none w-8 text-right font-mono text-[10px]">
+                        {match.lineNumber}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate font-mono text-[10px] opacity-85">
+                        {match.lineContent}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })
         )}
       </div>
-      {fileMatches.length > 0 && entriesQuery.data?.truncated ? (
+      {searchResults.length > 0 && searchResultsQuery.data?.truncated ? (
         <p className="shrink-0 border-t border-border/45 px-3 py-1.5 text-[10px] text-muted-foreground/70">
           Showing the top matches. Refine the search to narrow them down.
         </p>
@@ -858,12 +943,22 @@ function EditorActivityBarButton(props: {
 function EditorActivityBar(props: {
   centerMode: EditorCenterMode;
   searchActive: boolean;
+  extensionsActive: boolean;
   sidebarVisible: boolean;
   onSelectItem: (item: EditorActivityBarItem) => void;
 }) {
-  const filesActive = props.sidebarVisible && !props.searchActive && props.centerMode === "file";
-  const diffActive = props.sidebarVisible && !props.searchActive && props.centerMode === "diff";
+  const filesActive =
+    props.sidebarVisible &&
+    !props.searchActive &&
+    !props.extensionsActive &&
+    props.centerMode === "file";
+  const diffActive =
+    props.sidebarVisible &&
+    !props.searchActive &&
+    !props.extensionsActive &&
+    props.centerMode === "diff";
   const searchActive = props.sidebarVisible && props.searchActive;
+  const extensionsActive = props.sidebarVisible && props.extensionsActive;
   return (
     <nav
       className="flex w-12 shrink-0 flex-col items-center border-r border-border/65 bg-[var(--color-background-surface)]"
@@ -895,6 +990,13 @@ function EditorActivityBar(props: {
       >
         <SearchIcon className="size-5" />
       </EditorActivityBarButton>
+      <EditorActivityBarButton
+        label={extensionsActive ? "Hide extensions" : "Extensions"}
+        active={extensionsActive}
+        onClick={() => props.onSelectItem("extensions")}
+      >
+        <PluginIcon className="size-5" />
+      </EditorActivityBarButton>
     </nav>
   );
 }
@@ -906,6 +1008,11 @@ export function EditorWorkspaceView(props: EditorWorkspaceViewProps) {
   const trafficLightGutterClassName = useDesktopTopBarTrafficLightGutterClassName();
   const [chatPaneWidth, setChatPaneWidth] = useState(readStoredEditorChatPaneWidth);
   const chatPaneResizeStateRef = useRef<EditorChatPaneResizeState | null>(null);
+  const [sidebarWidth, setSidebarWidth] = useState(readStoredEditorSidebarWidth);
+  const sidebarResizeStateRef = useRef<EditorChatPaneResizeState | null>(null);
+  const [quickOpenOpen, setQuickOpenOpen] = useState(false);
+  const openFiles = props.openFiles ?? [];
+  const onCloseFile = props.onCloseFile ?? (() => {});
   // Both side surfaces can be hidden so the main content takes the full width:
   // re-clicking the active activity-bar item collapses the sidebar (VS Code
   // style), and the header chat toggle hides the chat pane (kept mounted so
@@ -921,14 +1028,52 @@ export function EditorWorkspaceView(props: EditorWorkspaceViewProps) {
   // query lives here so it survives toggling between sidebar panes.
   const [searchPaneActive, setSearchPaneActive] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [extensionsPaneActive, setExtensionsPaneActive] = useState(false);
   const desktopTopBarWindowControlsGutterClassName =
     useDesktopTopBarWindowControlsGutterClassName();
   const { centerMode, onCenterModeChange } = props;
+
+  const handleOpenSearchSidebar = useCallback(() => {
+    setSidebarVisible(true);
+    setSearchPaneActive(true);
+    storeEditorVisibility(EDITOR_SIDEBAR_VISIBLE_STORAGE_KEY, true);
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const isCmdP =
+        (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "p" && !event.shiftKey;
+      if (isCmdP) {
+        event.preventDefault();
+        event.stopPropagation();
+        setQuickOpenOpen((prev) => !prev);
+        return;
+      }
+
+      const isCmdShiftF =
+        (event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === "f";
+      if (isCmdShiftF) {
+        event.preventDefault();
+        event.stopPropagation();
+        handleOpenSearchSidebar();
+        return;
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown, { capture: true });
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown, { capture: true });
+    };
+  }, [handleOpenSearchSidebar]);
   const handleActivityBarSelectItem = useCallback(
     (item: EditorActivityBarItem) => {
       const itemActive =
         sidebarVisible &&
-        (item === "search" ? searchPaneActive : !searchPaneActive && centerMode === item);
+        (item === "search"
+          ? searchPaneActive
+          : item === "extensions"
+            ? extensionsPaneActive
+            : !searchPaneActive && !extensionsPaneActive && centerMode === item);
       if (itemActive) {
         setSidebarVisible(false);
         storeEditorVisibility(EDITOR_SIDEBAR_VISIBLE_STORAGE_KEY, false);
@@ -940,12 +1085,19 @@ export function EditorWorkspaceView(props: EditorWorkspaceViewProps) {
       }
       if (item === "search") {
         setSearchPaneActive(true);
+        setExtensionsPaneActive(false);
+        return;
+      }
+      if (item === "extensions") {
+        setSearchPaneActive(false);
+        setExtensionsPaneActive(true);
         return;
       }
       setSearchPaneActive(false);
+      setExtensionsPaneActive(false);
       onCenterModeChange(item);
     },
-    [centerMode, onCenterModeChange, searchPaneActive, sidebarVisible],
+    [centerMode, onCenterModeChange, searchPaneActive, extensionsPaneActive, sidebarVisible],
   );
   const toggleChatPaneVisible = useCallback(() => {
     setChatPaneVisible((previous) => {
@@ -1067,6 +1219,117 @@ export function EditorWorkspaceView(props: EditorWorkspaceViewProps) {
     [chatPaneWidth],
   );
 
+  const stopSidebarResize = useCallback(() => {
+    const resizeState = sidebarResizeStateRef.current;
+    if (!resizeState || typeof window === "undefined") {
+      return;
+    }
+
+    if (resizeState.rafId !== null) {
+      window.cancelAnimationFrame(resizeState.rafId);
+      resizeState.rafId = null;
+    }
+
+    window.removeEventListener("pointermove", resizeState.onPointerMove);
+    window.removeEventListener("pointerup", resizeState.onPointerEnd);
+    window.removeEventListener("pointercancel", resizeState.onPointerEnd);
+    document.body.style.cursor = resizeState.restoreBodyCursor;
+    document.body.style.userSelect = resizeState.restoreBodyUserSelect;
+    setSidebarWidth(resizeState.pendingWidth);
+    storeEditorSidebarWidth(resizeState.pendingWidth);
+    sidebarResizeStateRef.current = null;
+  }, []);
+
+  useEffect(() => stopSidebarResize, [stopSidebarResize]);
+
+  const handleSidebarResizePointerDown = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (event.button !== 0 || typeof window === "undefined") {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      stopSidebarResize();
+
+      const resizeState: EditorChatPaneResizeState = {
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startWidth: sidebarWidth,
+        pendingWidth: sidebarWidth,
+        rafId: null,
+        restoreBodyCursor: document.body.style.cursor,
+        restoreBodyUserSelect: document.body.style.userSelect,
+        onPointerMove: () => undefined,
+        onPointerEnd: () => undefined,
+      };
+
+      resizeState.onPointerMove = (moveEvent) => {
+        if (moveEvent.pointerId !== resizeState.pointerId) {
+          return;
+        }
+
+        resizeState.pendingWidth = clampEditorSidebarWidth(
+          resizeState.startWidth + moveEvent.clientX - resizeState.startX,
+        );
+
+        if (resizeState.rafId !== null) {
+          return;
+        }
+
+        resizeState.rafId = window.requestAnimationFrame(() => {
+          resizeState.rafId = null;
+          setSidebarWidth(resizeState.pendingWidth);
+        });
+      };
+
+      resizeState.onPointerEnd = (endEvent) => {
+        if (endEvent.pointerId !== resizeState.pointerId) {
+          return;
+        }
+        stopSidebarResize();
+      };
+
+      sidebarResizeStateRef.current = resizeState;
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
+      window.addEventListener("pointermove", resizeState.onPointerMove);
+      window.addEventListener("pointerup", resizeState.onPointerEnd);
+      window.addEventListener("pointercancel", resizeState.onPointerEnd);
+    },
+    [sidebarWidth, stopSidebarResize],
+  );
+
+  const handleSidebarResizeDoubleClick = useCallback(() => {
+    setSidebarWidth(EDITOR_SIDEBAR_DEFAULT_WIDTH);
+    storeEditorSidebarWidth(EDITOR_SIDEBAR_DEFAULT_WIDTH);
+  }, []);
+
+  const handleSidebarResizeKeyDown = useCallback(
+    (event: ReactKeyboardEvent<HTMLDivElement>) => {
+      let nextWidth: number | null = null;
+
+      if (event.key === "ArrowLeft") {
+        nextWidth = sidebarWidth - EDITOR_SIDEBAR_KEYBOARD_STEP;
+      } else if (event.key === "ArrowRight") {
+        nextWidth = sidebarWidth + EDITOR_SIDEBAR_KEYBOARD_STEP;
+      } else if (event.key === "Home") {
+        nextWidth = EDITOR_SIDEBAR_MIN_WIDTH;
+      } else if (event.key === "End") {
+        nextWidth = EDITOR_SIDEBAR_MAX_WIDTH;
+      }
+
+      if (nextWidth !== null) {
+        event.preventDefault();
+        event.stopPropagation();
+        const clamped = clampEditorSidebarWidth(nextWidth);
+        setSidebarWidth(clamped);
+        storeEditorSidebarWidth(clamped);
+      }
+    },
+    [sidebarWidth],
+  );
+
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-[var(--color-background-root)] text-foreground">
       <div
@@ -1134,38 +1397,75 @@ export function EditorWorkspaceView(props: EditorWorkspaceViewProps) {
         <EditorActivityBar
           centerMode={props.centerMode}
           searchActive={searchPaneActive}
+          extensionsActive={extensionsPaneActive}
           sidebarVisible={sidebarVisible}
           onSelectItem={handleActivityBarSelectItem}
         />
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden lg:flex-row">
-          {!sidebarVisible ? null : searchPaneActive ? (
-            <WorkspaceSearchSidebar
-              workspaceRoot={props.workspaceRoot}
-              query={searchQuery}
-              onQueryChange={setSearchQuery}
-              selectedFilePath={props.selectedFilePath}
-              onSelectFile={props.onSelectFile}
-              onReferenceInChat={props.onReferenceInChat}
-            />
-          ) : props.centerMode === "diff" ? (
-            <DiffFilesSidebar
-              files={props.diffFiles}
-              isLoading={props.diffFilesLoading ?? false}
-              selectedFilePath={props.selectedDiffFilePath}
-              optionsControl={props.diffOptionsControl}
-              onSelectFile={props.onSelectDiffFile}
-              onReferenceInChat={props.onReferenceInChat}
-              onAskWhyInChat={props.onAskWhyInChat}
-            />
-          ) : (
-            <WorkspaceFilesSidebar
-              workspaceRoot={props.workspaceRoot}
-              selectedFilePath={props.selectedFilePath}
-              expandedDirectories={props.expandedDirectories}
-              onSelectFile={props.onSelectFile}
-              onToggleDirectory={props.onToggleDirectory}
-              onReferenceInChat={props.onReferenceInChat}
-            />
+        <div
+          className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden lg:flex-row"
+          style={
+            {
+              "--editor-sidebar-width": `${sidebarWidth}px`,
+            } as CSSProperties
+          }
+        >
+          {!sidebarVisible ? null : (
+            <>
+              {searchPaneActive ? (
+                <WorkspaceSearchSidebar
+                  workspaceRoot={props.workspaceRoot}
+                  query={searchQuery}
+                  onQueryChange={setSearchQuery}
+                  selectedFilePath={props.selectedFilePath}
+                  onSelectFile={props.onSelectFile}
+                  onReferenceInChat={props.onReferenceInChat}
+                />
+              ) : extensionsPaneActive ? (
+                <WorkspaceExtensionsSidebar workspaceRoot={props.workspaceRoot} />
+              ) : props.centerMode === "diff" ? (
+                <DiffFilesSidebar
+                  files={props.diffFiles}
+                  isLoading={props.diffFilesLoading ?? false}
+                  selectedFilePath={props.selectedDiffFilePath}
+                  optionsControl={props.diffOptionsControl}
+                  onSelectFile={props.onSelectDiffFile}
+                  onReferenceInChat={props.onReferenceInChat}
+                  onAskWhyInChat={props.onAskWhyInChat}
+                />
+              ) : (
+                <WorkspaceFilesSidebar
+                  workspaceRoot={props.workspaceRoot}
+                  selectedFilePath={props.selectedFilePath}
+                  expandedDirectories={props.expandedDirectories}
+                  onSelectFile={props.onSelectFile}
+                  onToggleDirectory={props.onToggleDirectory}
+                  onReferenceInChat={props.onReferenceInChat}
+                />
+              )}
+              <div
+                role="separator"
+                aria-label="Resize explorer panel"
+                aria-orientation="vertical"
+                aria-valuemin={EDITOR_SIDEBAR_MIN_WIDTH}
+                aria-valuemax={EDITOR_SIDEBAR_MAX_WIDTH}
+                aria-valuenow={sidebarWidth}
+                tabIndex={0}
+                title="Drag to resize explorer panel"
+                className="group relative z-10 w-0 shrink-0 cursor-col-resize outline-none hidden lg:block"
+                onPointerDown={handleSidebarResizePointerDown}
+                onDoubleClick={handleSidebarResizeDoubleClick}
+                onKeyDown={handleSidebarResizeKeyDown}
+              >
+                <span
+                  className="absolute inset-y-0 left-[-3px] w-1.5 cursor-col-resize bg-transparent transition-colors group-hover:bg-[var(--color-background-button-secondary-hover)] group-focus-visible:bg-[var(--color-background-button-secondary-hover)]"
+                  aria-hidden="true"
+                />
+                <span
+                  className="pointer-events-none absolute inset-y-0 left-0 w-px bg-[var(--app-surface-divider)] transition-colors group-hover:bg-[var(--color-text-accent)] group-focus-visible:bg-[var(--color-text-accent)]"
+                  aria-hidden="true"
+                />
+              </div>
+            </>
           )}
           <main className="flex min-h-[16rem] min-w-0 flex-1 border-b border-border/65 lg:h-full lg:border-b-0">
             {/* Keep the diff panel mounted while browsing files: unmounting it
@@ -1175,14 +1475,95 @@ export function EditorWorkspaceView(props: EditorWorkspaceViewProps) {
               {props.diffPanel}
             </div>
             {props.centerMode === "file" ? (
-              <div className="flex min-h-0 min-w-0 flex-1">
-                <WorkspaceFilePreview
-                  workspaceRoot={props.workspaceRoot}
-                  filePath={props.selectedFilePath}
-                  onReferenceInChat={props.onReferenceInChat}
-                  onAskWhyInChat={props.onAskWhyInChat}
-                  onCommentInChat={props.onCommentInChat}
-                />
+              <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+                {openFiles.length > 0 ? (
+                  <div className="editor-tabs-bar flex items-center gap-1 border-b border-border/40 bg-[var(--color-background-surface-secondary)] px-2 py-1 overflow-x-auto select-none shrink-0 h-9">
+                    {openFiles.map((path) => {
+                      const { name } = splitRepoRelativePath(path);
+                      const isActive = path === props.selectedFilePath;
+                      return (
+                        <div
+                          key={path}
+                          className={cn(
+                            "editor-tab-item group flex items-center gap-1.5 px-3 py-1 text-[12px] font-medium rounded-md transition-all cursor-pointer h-7",
+                            isActive
+                              ? "editor-tab-item-active bg-[var(--color-background-button-secondary-hover)] text-foreground shadow-sm border border-border/40"
+                              : "text-muted-foreground/80 hover:bg-[var(--color-background-button-secondary-hover)] hover:text-foreground",
+                          )}
+                          onClick={() => props.onSelectFile(path)}
+                        >
+                          <FileEntryIcon
+                            pathValue={path}
+                            kind="file"
+                            className="size-3.5 shrink-0 opacity-75"
+                          />
+                          <span className="truncate max-w-[120px]">{name}</span>
+                          <button
+                            type="button"
+                            className="size-4 flex items-center justify-center rounded-full text-muted-foreground/60 hover:bg-black/10 hover:text-foreground dark:hover:bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onCloseFile(path);
+                            }}
+                          >
+                            ×
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : null}
+                <div className="flex min-h-0 min-w-0 flex-1">
+                  {props.selectedFilePath ? (
+                    <WorkspaceFilePreview
+                      workspaceRoot={props.workspaceRoot}
+                      filePath={props.selectedFilePath}
+                      editorLine={props.editorLine}
+                      autoEdit={true}
+                      compact={true}
+                      onReferenceInChat={props.onReferenceInChat}
+                      onAskWhyInChat={props.onAskWhyInChat}
+                      onSelectFile={props.onSelectFile}
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center flex-1 p-6 text-center bg-[var(--color-background-surface)]">
+                      <div className="max-w-md space-y-6">
+                        <div className="flex justify-center">
+                          <FileEntryIcon
+                            pathValue="Workspace"
+                            kind="directory"
+                            className="size-16 text-muted-foreground/30"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <h3 className="text-base font-semibold text-foreground">No file open</h3>
+                          <p className="text-sm text-muted-foreground/80 leading-relaxed">
+                            Select a file from the explorer, use grep search in the sidebar, or
+                            search globally.
+                          </p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4 max-w-sm mx-auto text-left border border-border/40 rounded-xl p-4 bg-[var(--color-background-surface-secondary)]/50">
+                          <div className="space-y-1">
+                            <span className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider block">
+                              Find File
+                            </span>
+                            <span className="text-[12px] font-mono font-bold bg-black/5 dark:bg-white/5 border border-border/20 rounded px-1.5 py-0.5 inline-block text-foreground">
+                              ⌘P
+                            </span>
+                          </div>
+                          <div className="space-y-1">
+                            <span className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider block">
+                              Grep Search
+                            </span>
+                            <span className="text-[12px] font-mono font-bold bg-black/5 dark:bg-white/5 border border-border/20 rounded px-1.5 py-0.5 inline-block text-foreground">
+                              ⌘⇧F
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             ) : null}
           </main>
@@ -1229,6 +1610,21 @@ export function EditorWorkspaceView(props: EditorWorkspaceViewProps) {
           </aside>
         </div>
       </div>
+      <EditorQuickOpen
+        open={quickOpenOpen}
+        onClose={() => setQuickOpenOpen(false)}
+        workspaceRoot={props.workspaceRoot}
+        onSelectFile={(path) => {
+          setQuickOpenOpen(false);
+          props.onSelectFile(path);
+        }}
+        onSwitchToCommandPalette={() => {
+          setQuickOpenOpen(false);
+        }}
+        onSwitchToGoToLine={() => {
+          setQuickOpenOpen(false);
+        }}
+      />
     </div>
   );
 }

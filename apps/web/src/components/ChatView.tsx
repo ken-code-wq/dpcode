@@ -269,6 +269,7 @@ import {
   getProviderStartOptions,
   resolveAppModelSelection,
   resolveAssistantDeliveryMode,
+  resolveMaxBufferedAssistantChars,
   useAppSettings,
 } from "../appSettings";
 import { resolveTerminalNewAction } from "../lib/terminalNewAction";
@@ -574,6 +575,10 @@ function getProviderStartOptionsCustomBinaryPath(
       return normalizeCustomBinaryPath(providerOptions?.cursor?.binaryPath);
     case "pi":
       return normalizeCustomBinaryPath(providerOptions?.pi?.binaryPath);
+    case "ollama":
+      return normalizeCustomBinaryPath(providerOptions?.ollama?.binaryPath);
+    case "lmstudio":
+      return normalizeCustomBinaryPath(providerOptions?.lmstudio?.binaryPath);
   }
 }
 
@@ -745,6 +750,7 @@ export default function ChatView({
   const setStoreThreadWorkspace = useStore((store) => store.setThreadWorkspace);
   const { settings } = useAppSettings();
   const assistantDeliveryMode = resolveAssistantDeliveryMode(settings);
+  const maxBufferedAssistantChars = resolveMaxBufferedAssistantChars(settings);
   const desktopTopBarTrafficLightGutterClassName = useDesktopTopBarTrafficLightGutterClassName();
   const desktopTopBarWindowControlsGutterClassName =
     useDesktopTopBarWindowControlsGutterClassName();
@@ -1428,6 +1434,8 @@ export default function ChatView({
       kilo: resolveHint("kilo"),
       opencode: resolveHint("opencode"),
       pi: resolveHint("pi"),
+      ollama: resolveHint("ollama"),
+      lmstudio: resolveHint("lmstudio"),
     };
   }, [
     activeProject?.defaultModelSelection,
@@ -1449,6 +1457,10 @@ export default function ChatView({
     selectedProvider === "kilo" || lockedProvider === "kilo" || isModelPickerOpen;
   const piModelDiscoveryEnabled =
     selectedProvider === "pi" || lockedProvider === "pi" || isModelPickerOpen;
+  const ollamaModelDiscoveryEnabled =
+    selectedProvider === "ollama" || lockedProvider === "ollama" || isModelPickerOpen;
+  const lmStudioModelDiscoveryEnabled =
+    selectedProvider === "lmstudio" || lockedProvider === "lmstudio" || isModelPickerOpen;
   const cursorDynamicModelsQuery = useQuery(
     providerModelsQueryOptions({
       provider: "cursor",
@@ -1492,6 +1504,20 @@ export default function ChatView({
       agentDir: settings.piAgentDir || null,
       cwd: providerModelDiscoveryCwd,
       enabled: piModelDiscoveryEnabled,
+    }),
+  );
+  const ollamaDynamicModelsQuery = useQuery(
+    providerModelsQueryOptions({
+      provider: "ollama",
+      binaryPath: settings.ollamaBinaryPath || null,
+      enabled: ollamaModelDiscoveryEnabled,
+    }),
+  );
+  const lmStudioDynamicModelsQuery = useQuery(
+    providerModelsQueryOptions({
+      provider: "lmstudio",
+      binaryPath: settings.lmStudioBinaryPath || null,
+      enabled: lmStudioModelDiscoveryEnabled,
     }),
   );
   const claudeDynamicAgentsQuery = useQuery(
@@ -1574,6 +1600,16 @@ export default function ChatView({
         composerModelHintByProvider.opencode,
       ),
       pi: getAppModelOptions("pi", customModelsByProvider.pi, composerModelHintByProvider.pi),
+      ollama: getAppModelOptions(
+        "ollama",
+        customModelsByProvider.ollama,
+        composerModelHintByProvider.ollama,
+      ),
+      lmstudio: getAppModelOptions(
+        "lmstudio",
+        customModelsByProvider.lmstudio,
+        composerModelHintByProvider.lmstudio,
+      ),
     };
     const result: Record<
       ProviderKind,
@@ -1592,6 +1628,8 @@ export default function ChatView({
       kilo: kiloDynamicModelsQuery.data,
       opencode: openCodeDynamicModelsQuery.data,
       pi: piDynamicModelsQuery.data,
+      ollama: ollamaDynamicModelsQuery.data,
+      lmstudio: lmStudioDynamicModelsQuery.data,
     };
 
     for (const provider of [
@@ -1603,6 +1641,8 @@ export default function ChatView({
       "kilo",
       "opencode",
       "pi",
+      "ollama",
+      "lmstudio",
     ] as const) {
       const dynamicModels = dynamicSources[provider]?.models;
       if (dynamicModels && dynamicModels.length > 0) {
@@ -1627,6 +1667,8 @@ export default function ChatView({
     kiloDynamicModelsQuery.data,
     openCodeDynamicModelsQuery.data,
     piDynamicModelsQuery.data,
+    ollamaDynamicModelsQuery.data,
+    lmStudioDynamicModelsQuery.data,
   ]);
   const { modelOptions: composerModelOptions, selectedModel } = useEffectiveComposerModelState({
     threadId,
@@ -1646,6 +1688,8 @@ export default function ChatView({
       kilo: kiloDynamicModelsQuery.data?.models ?? [],
       opencode: openCodeDynamicModelsQuery.data?.models ?? [],
       pi: piDynamicModelsQuery.data?.models ?? [],
+      ollama: ollamaDynamicModelsQuery.data?.models ?? [],
+      lmstudio: lmStudioDynamicModelsQuery.data?.models ?? [],
     }),
     [
       claudeDynamicModelsQuery.data?.models,
@@ -1656,6 +1700,8 @@ export default function ChatView({
       kiloDynamicModelsQuery.data?.models,
       openCodeDynamicModelsQuery.data?.models,
       piDynamicModelsQuery.data?.models,
+      ollamaDynamicModelsQuery.data?.models,
+      lmStudioDynamicModelsQuery.data?.models,
     ],
   );
   const providerModelsQueryByProvider = {
@@ -1667,6 +1713,8 @@ export default function ChatView({
     kilo: kiloDynamicModelsQuery,
     opencode: openCodeDynamicModelsQuery,
     pi: piDynamicModelsQuery,
+    ollama: ollamaDynamicModelsQuery,
+    lmstudio: lmStudioDynamicModelsQuery,
   } as const;
   const selectedRuntimeModel = useMemo(
     () =>
@@ -6216,6 +6264,7 @@ export default function ChatView({
           ? { providerOptions: providerOptionsForDispatchForSend }
           : {}),
         assistantDeliveryMode,
+        maxBufferedAssistantChars,
         dispatchMode,
         runtimeMode: nextRuntimeModeForSend,
         interactionMode: interactionModeForSend,
@@ -6600,6 +6649,7 @@ export default function ChatView({
             }
           : {}),
         assistantDeliveryMode,
+        maxBufferedAssistantChars,
         dispatchMode,
         runtimeMode: queuedTurn?.runtimeMode ?? runtimeMode,
         interactionMode: nextInteractionMode,
@@ -6687,6 +6737,7 @@ export default function ChatView({
           modelSelection: selectedModelSelection,
           ...(providerOptionsForDispatch ? { providerOptions: providerOptionsForDispatch } : {}),
           assistantDeliveryMode,
+          maxBufferedAssistantChars,
           runtimeMode,
           interactionMode,
           createdAt: messageCreatedAt,
@@ -6718,6 +6769,7 @@ export default function ChatView({
       selectedProvider,
       setThreadError,
       assistantDeliveryMode,
+      maxBufferedAssistantChars,
     ],
   );
 
@@ -6891,6 +6943,7 @@ export default function ChatView({
           modelSelection: selectedModelSelection,
           ...(providerOptionsForDispatch ? { providerOptions: providerOptionsForDispatch } : {}),
           assistantDeliveryMode,
+          maxBufferedAssistantChars,
           dispatchMode: "queue",
           runtimeMode,
           interactionMode: "default",
@@ -6948,6 +7001,7 @@ export default function ChatView({
     rememberCustomBinaryPathForDispatch,
     selectedProvider,
     assistantDeliveryMode,
+    maxBufferedAssistantChars,
     syncServerShellSnapshot,
     selectedModel,
   ]);
@@ -7035,7 +7089,7 @@ export default function ChatView({
       terminalContexts: composerTerminalContexts,
     });
     const usedTokens = (baseContextWindow.usedTokens ?? 0) + draftTokens;
-    const maxTokens = baseContextWindow.maxTokens;
+    const maxTokens = baseContextWindow.maxTokens ?? null;
     const usedPercentage =
       maxTokens !== null && maxTokens > 0
         ? Math.min(100, (usedTokens / maxTokens) * 100)

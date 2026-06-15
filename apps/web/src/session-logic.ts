@@ -70,6 +70,7 @@ export interface WorkLogEntry {
   requestKind?: PendingApproval["requestKind"];
   subagents?: ReadonlyArray<WorkLogSubagent>;
   subagentAction?: WorkLogSubagentAction;
+  activityKind?: string | undefined;
 }
 
 export const WORK_LOG_PRESENTATION_VERSION = 6;
@@ -774,13 +775,7 @@ export function deriveWorkLogEntries(
     .filter((activity) => !isUninformativeCommandStartActivity(activity))
     .map(toDerivedWorkLogEntry);
   return collapseDerivedWorkLogEntries(entries).map(
-    ({
-      activityKind: _activityKind,
-      collapseCommand: _collapseCommand,
-      collapseKey: _collapseKey,
-      toolName: _toolName,
-      ...entry
-    }) => entry,
+    ({ collapseCommand: _collapseCommand, collapseKey: _collapseKey, ...entry }) => entry,
   );
 }
 

@@ -138,6 +138,8 @@ export function resolvePromptEffortFromModelSelection(
       return modelSelection.options?.thinkingLevel ?? null;
     case "kilo":
     case "opencode":
+    case "ollama":
+    case "lmstudio":
       return null;
   }
 }

@@ -12,7 +12,7 @@ import { Fragment, memo, useCallback, useMemo } from "react";
 
 import { basenameOfPath } from "~/file-icons";
 import type { ChatFileReference } from "~/lib/chatReferences";
-import { ChevronRightIcon, EllipsisIcon, EyeIcon, FileIcon } from "~/lib/icons";
+import { ChevronRightIcon, EllipsisIcon, EyeIcon, FileIcon, PencilIcon } from "~/lib/icons";
 import { cn } from "~/lib/utils";
 import { Menu, MenuItem, MenuTrigger } from "../ui/menu";
 import { CHAT_SURFACE_HEADER_DIVIDER_CLASS_NAME, ChatHeaderIconButton } from "./chatHeaderControls";
@@ -32,6 +32,7 @@ interface WorkspaceFilePreviewHeaderProps {
   onAskWhyInChat?: ((reference: ChatFileReference) => void) | undefined;
   /** Shown when the preview only holds a partial read of a large file. */
   truncated?: boolean;
+  onEdit?: (() => void) | undefined;
 }
 
 // Source (raw file, where selecting text yields a precise line/column chat
@@ -173,6 +174,17 @@ export const WorkspaceFilePreviewHeader = memo(function WorkspaceFilePreviewHead
             </ComposerPickerMenuPopup>
           </Menu>
         ) : null}
+
+        {props.onEdit && (
+          <ChatHeaderIconButton
+            label="Edit file"
+            title="Edit file in built-in editor"
+            tone="outline"
+            onClick={props.onEdit}
+          >
+            <PencilIcon className="size-3.5" />
+          </ChatHeaderIconButton>
+        )}
 
         <OpenInPicker
           openInTarget={

@@ -1378,9 +1378,9 @@ const DOCK_EMBEDDED_PANEL_STATE: SplitViewPanePanelState = {
 
 function stripEditorViewSearchParams<T extends Record<string, unknown>>(
   params: T,
-): Omit<T, "view" | "editorFilePath"> {
-  const { view: _view, editorFilePath: _editorFilePath, ...rest } = params;
-  return rest as Omit<T, "view" | "editorFilePath">;
+): Omit<T, "view" | "editorFilePath" | "editorLine"> {
+  const { view: _view, editorFilePath: _editorFilePath, editorLine: _editorLine, ...rest } = params;
+  return rest as Omit<T, "view" | "editorFilePath" | "editorLine">;
 }
 
 function collectParentDirectoryPaths(filePath: string): string[] {
@@ -1415,6 +1415,11 @@ function SingleChatSurface(props: {
     useMemo(() => createProjectSelector(props.projectId), [props.projectId]),
   );
   const workspaceRoot = activeProject?.cwd ?? null;
+  const rawEditorFilePath = props.search.editorFilePath ?? null;
+  const selectedEditorFilePath =
+    rawEditorFilePath !== null && isWorkspaceRelativePathSafe(rawEditorFilePath)
+      ? rawEditorFilePath
+      : null;
   const projects = useStore((store) => store.projects);
   const { settings: appSettings } = useAppSettings();
   const { handleNewThread } = useHandleNewThread();
@@ -1428,6 +1433,22 @@ function SingleChatSurface(props: {
       ? "file"
       : (readEditorViewState(props.threadId)?.centerMode ?? "diff"),
   );
+  const [editorOpenFiles, setEditorOpenFiles] = useState<ReadonlyArray<string>>(
+    () => readEditorViewState(props.threadId)?.openFiles ?? [],
+  );
+
+  // Keep editorOpenFiles in sync with current file
+  useEffect(() => {
+    if (selectedEditorFilePath) {
+      setEditorOpenFiles((previous) => {
+        if (previous.includes(selectedEditorFilePath)) {
+          return previous;
+        }
+        return [...previous, selectedEditorFilePath];
+      });
+    }
+  }, [selectedEditorFilePath]);
+
   // This route component is reused across thread navigations; reload the
   // persisted editor view state when the thread changes.
   const editorViewStateThreadIdRef = useRef(props.threadId);
@@ -1439,6 +1460,7 @@ function SingleChatSurface(props: {
     const persisted = readEditorViewState(props.threadId);
     setEditorExpandedDirectories(new Set(persisted?.expandedDirectories ?? []));
     setEditorCenterMode(props.search.editorFilePath ? "file" : (persisted?.centerMode ?? "diff"));
+    setEditorOpenFiles(persisted?.openFiles ?? []);
   }, [props.search.editorFilePath, props.threadId]);
   const editorViewActive = props.search.view === "editor";
   useEffect(() => {
@@ -1448,8 +1470,15 @@ function SingleChatSurface(props: {
     storeEditorViewState(props.threadId, {
       expandedDirectories: [...editorExpandedDirectories],
       centerMode: editorCenterMode,
+      openFiles: editorOpenFiles,
     });
-  }, [editorCenterMode, editorExpandedDirectories, editorViewActive, props.threadId]);
+  }, [
+    editorCenterMode,
+    editorExpandedDirectories,
+    editorOpenFiles,
+    editorViewActive,
+    props.threadId,
+  ]);
   const [editorDiffPanelState, setEditorDiffPanelState] = useState<
     Pick<SplitViewPanePanelState, "panel" | "diffTurnId" | "diffFilePath">
   >({
@@ -1532,8 +1561,14 @@ function SingleChatSurface(props: {
   }, [navigate, props.threadId]);
 
   const handleSelectEditorFile = useCallback(
-    (filePath: string) => {
+    (filePath: string, lineNumber?: number) => {
       setEditorCenterMode("file");
+      setEditorOpenFiles((previous) => {
+        if (previous.includes(filePath)) {
+          return previous;
+        }
+        return [...previous, filePath];
+      });
       void navigate({
         to: "/$threadId",
         params: { threadId: props.threadId },
@@ -1542,10 +1577,61 @@ function SingleChatSurface(props: {
           ...stripDiffSearchParams(previous),
           view: "editor",
           editorFilePath: filePath,
+          ...(lineNumber ? { editorLine: lineNumber.toString() } : {}),
         }),
       });
     },
     [navigate, props.threadId],
+  );
+
+  const handleCloseEditorFile = useCallback(
+    (filePath: string) => {
+      let nextActivePath: string | null = null;
+      setEditorOpenFiles((previous) => {
+        const index = previous.indexOf(filePath);
+        if (index === -1) {
+          return previous;
+        }
+        const next = previous.filter((path) => path !== filePath);
+        if (selectedEditorFilePath === filePath) {
+          if (next.length > 0) {
+            const nextIndex = Math.min(index, next.length - 1);
+            nextActivePath = next[nextIndex] ?? null;
+          } else {
+            nextActivePath = null;
+          }
+        } else {
+          nextActivePath = selectedEditorFilePath;
+        }
+        return next;
+      });
+
+      if (nextActivePath) {
+        void navigate({
+          to: "/$threadId",
+          params: { threadId: props.threadId },
+          replace: true,
+          search: (previous) => ({
+            ...stripDiffSearchParams(previous),
+            view: "editor",
+            editorFilePath: nextActivePath!,
+          }),
+        });
+      } else {
+        void navigate({
+          to: "/$threadId",
+          params: { threadId: props.threadId },
+          replace: true,
+          search: (previous) => {
+            const next = { ...previous };
+            delete next.editorFilePath;
+            delete next.editorLine;
+            return next;
+          },
+        });
+      }
+    },
+    [navigate, props.threadId, selectedEditorFilePath],
   );
 
   const handleToggleEditorDirectory = useCallback((directoryPath: string) => {
@@ -2054,11 +2140,6 @@ function SingleChatSurface(props: {
   // The editor file path arrives via the URL, so an attacker-crafted link can
   // carry traversal segments ("../../etc"). Treat unsafe values as no selection
   // so neither the ancestor prefetch nor the preview ever queries them.
-  const rawEditorFilePath = props.search.editorFilePath ?? null;
-  const selectedEditorFilePath =
-    rawEditorFilePath !== null && isWorkspaceRelativePathSafe(rawEditorFilePath)
-      ? rawEditorFilePath
-      : null;
   useEffect(() => {
     if (!selectedEditorFilePath) {
       return;
@@ -2120,6 +2201,8 @@ function SingleChatSurface(props: {
             currentProjectId={activeProject?.id ?? null}
             projectOptions={editorProjectOptions}
             selectedFilePath={selectedEditorFilePath}
+            openFiles={editorOpenFiles}
+            editorLine={props.search.editorLine ? parseInt(props.search.editorLine, 10) : undefined}
             expandedDirectories={editorExpandedDirectories}
             centerMode={editorCenterMode}
             diffFiles={editorDiffFiles}
@@ -2128,6 +2211,7 @@ function SingleChatSurface(props: {
             diffOptionsControl={editorDiffOptionsControl}
             onSelectDiffFile={handleSelectEditorDiffFile}
             onSelectFile={handleSelectEditorFile}
+            onCloseFile={handleCloseEditorFile}
             onToggleDirectory={handleToggleEditorDirectory}
             onCenterModeChange={setEditorCenterMode}
             onExitEditorView={handleCloseEditorView}

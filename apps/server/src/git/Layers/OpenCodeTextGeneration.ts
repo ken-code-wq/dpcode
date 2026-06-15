@@ -7,6 +7,8 @@ import type {
   OpenCodeModelSelection,
   OpenCodeModelOptions,
   ProviderStartOptions,
+  OllamaModelSelection,
+  LmStudioModelSelection,
 } from "@t3tools/contracts";
 import { sanitizeGeneratedThreadTitle } from "@t3tools/shared/chatThreads";
 import { sanitizeBranchFragment, sanitizeFeatureBranchName } from "@t3tools/shared/git";
@@ -99,8 +101,12 @@ interface SharedOpenCodeTextGenerationServerState {
   idleCloseFiber: Fiber.Fiber<void, never> | null;
 }
 
-type OpenCodeCompatibleTextGenerationProvider = "opencode" | "kilo";
-type OpenCodeCompatibleModelSelection = OpenCodeModelSelection | KiloModelSelection;
+type OpenCodeCompatibleTextGenerationProvider = "opencode" | "kilo" | "ollama" | "lmstudio";
+type OpenCodeCompatibleModelSelection =
+  | OpenCodeModelSelection
+  | KiloModelSelection
+  | OllamaModelSelection
+  | LmStudioModelSelection;
 
 interface OpenCodeCompatibleTextGenerationConfig {
   readonly provider: OpenCodeCompatibleTextGenerationProvider;
@@ -117,6 +123,12 @@ function resolveOpenCodeCompatibleModelSelection(
   },
 ): OpenCodeCompatibleModelSelection | null {
   if (input.modelSelection?.provider === config.provider) {
+    return input.modelSelection as OpenCodeCompatibleModelSelection;
+  }
+  if (
+    config.provider === "opencode" &&
+    (input.modelSelection?.provider === "ollama" || input.modelSelection?.provider === "lmstudio")
+  ) {
     return input.modelSelection as OpenCodeCompatibleModelSelection;
   }
 
@@ -309,9 +321,25 @@ const makeOpenCodeCompatibleTextGeneration = (config: OpenCodeCompatibleTextGene
         });
       }
 
-      const providerOptions = input.providerOptions?.[config.provider];
-      const binaryPath = providerOptions?.binaryPath?.trim() || config.cliSpec.defaultBinaryPath;
-      const serverUrl = providerOptions?.serverUrl?.trim() || "";
+      const actualProvider = input.modelSelection.provider;
+      const providerOptions = input.providerOptions?.[actualProvider];
+      const binaryPath =
+        providerOptions?.binaryPath?.trim() ||
+        (actualProvider === "ollama"
+          ? "ollama"
+          : actualProvider === "lmstudio"
+            ? "lmstudio"
+            : config.cliSpec.defaultBinaryPath);
+      let serverUrl = providerOptions?.serverUrl?.trim();
+      if (!serverUrl) {
+        if (actualProvider === "ollama") {
+          serverUrl = "http://127.0.0.1:11434";
+        } else if (actualProvider === "lmstudio") {
+          serverUrl = "http://127.0.0.1:1234";
+        } else {
+          serverUrl = "";
+        }
+      }
       const serverPassword = providerOptions?.serverPassword?.trim() || "";
       const providerId = parsedModel.providerID;
       const modelId = parsedModel.modelID;

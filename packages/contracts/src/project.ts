@@ -217,3 +217,28 @@ export const ProjectDevServerEvent = Schema.Union([
   }),
 ]);
 export type ProjectDevServerEvent = typeof ProjectDevServerEvent.Type;
+
+export const ProjectContentSearchMatch = Schema.Struct({
+  lineNumber: PositiveInt,
+  lineContent: Schema.String,
+});
+export type ProjectContentSearchMatch = typeof ProjectContentSearchMatch.Type;
+
+export const ProjectSearchContentMatch = Schema.Struct({
+  path: TrimmedNonEmptyString,
+  matches: Schema.Array(ProjectContentSearchMatch),
+});
+export type ProjectSearchContentMatch = typeof ProjectSearchContentMatch.Type;
+
+export const ProjectSearchContentInput = Schema.Struct({
+  cwd: TrimmedNonEmptyString,
+  query: TrimmedNonEmptyString.check(Schema.isMaxLength(256)),
+  limit: Schema.optional(PositiveInt),
+});
+export type ProjectSearchContentInput = typeof ProjectSearchContentInput.Type;
+
+export const ProjectSearchContentResult = Schema.Struct({
+  results: Schema.Array(ProjectSearchContentMatch),
+  truncated: Schema.Boolean,
+});
+export type ProjectSearchContentResult = typeof ProjectSearchContentResult.Type;

@@ -6,7 +6,10 @@ import { render } from "vitest-browser-react";
 import { ProviderModelPicker } from "./ProviderModelPicker";
 import type { ProviderModelOption } from "../../providerModelOptions";
 
-const MODEL_OPTIONS_BY_PROVIDER = {
+const MODEL_OPTIONS_BY_PROVIDER: Record<
+  ProviderKind,
+  ReadonlyArray<ProviderModelOption & { slug: ModelSlug }>
+> = {
   claudeAgent: [
     { slug: "claude-opus-4-6", name: "Claude Opus 4.6" },
     { slug: "claude-sonnet-4-6", name: "Claude Sonnet 4.6" },
@@ -56,6 +59,22 @@ const MODEL_OPTIONS_BY_PROVIDER = {
       name: "Claude Sonnet 4.5",
       upstreamProviderId: "anthropic",
       upstreamProviderName: "Anthropic",
+    },
+  ],
+  ollama: [
+    {
+      slug: "ollama/qwen2.5-coder:7b",
+      name: "Qwen 2.5 Coder 7B",
+      upstreamProviderId: "ollama",
+      upstreamProviderName: "Ollama",
+    },
+  ],
+  lmstudio: [
+    {
+      slug: "lmstudio/qwen2.5-coder-7b",
+      name: "Qwen 2.5 Coder 7B",
+      upstreamProviderId: "lmstudio",
+      upstreamProviderName: "LM Studio",
     },
   ],
 } as const satisfies Record<ProviderKind, ReadonlyArray<ProviderModelOption & { slug: ModelSlug }>>;

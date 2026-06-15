@@ -19,6 +19,8 @@ import {
   OpenAI,
   OpenCodeIcon,
   PiIcon,
+  OllamaIcon,
+  LmStudioIcon,
 } from "./Icons";
 
 export type ProviderIconTone = "default" | "header";
@@ -71,6 +73,8 @@ export const PROVIDER_ICON_COMPONENT_BY_PROVIDER: Record<ProviderKind, Icon> = {
   kilo: KiloIcon,
   opencode: OpenCodeProviderIcon,
   pi: PiIcon,
+  ollama: OllamaIcon,
+  lmstudio: LmStudioIcon,
 };
 
 export function providerIconToneClassName(

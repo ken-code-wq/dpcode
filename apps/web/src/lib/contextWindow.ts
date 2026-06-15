@@ -27,7 +27,7 @@ function asContextWindowPercent(value: unknown): number | null {
 
 type NullableContextWindowUsage = {
   readonly [Key in keyof ThreadTokenUsageSnapshot]: undefined extends ThreadTokenUsageSnapshot[Key]
-    ? Exclude<ThreadTokenUsageSnapshot[Key], undefined> | null
+    ? Exclude<ThreadTokenUsageSnapshot[Key], undefined> | null | undefined
     : ThreadTokenUsageSnapshot[Key];
 };
 
@@ -455,11 +455,11 @@ export function fallbackContextWindowSnapshot(
   if (!snapshot) {
     return defaultSnapshot;
   }
-  if (snapshot.maxTokens !== null && snapshot.maxTokens > 0) {
+  if (snapshot.maxTokens !== undefined && snapshot.maxTokens !== null && snapshot.maxTokens > 0) {
     return snapshot;
   }
 
-  const maxTokens = defaultSnapshot.maxTokens;
+  const maxTokens = defaultSnapshot.maxTokens ?? null;
   const usedTokens = snapshot.usedTokens ?? 0;
   const usedPercentage =
     snapshot.usedPercent ??

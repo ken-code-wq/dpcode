@@ -85,6 +85,8 @@ const PROVIDER_ORDER: readonly ProviderWithDefaultModel[] = [
   "gemini",
   "kilo",
   "opencode",
+  "ollama",
+  "lmstudio",
 ];
 
 function resolveTextGenerationProvider(settings: ServerSettings): ServerSettings {

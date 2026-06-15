@@ -7,7 +7,7 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Option, Schema } from "effect";
 import {
-  type AssistantDeliveryMode,
+  AssistantDeliveryMode,
   DEFAULT_GIT_TEXT_GENERATION_MODEL,
   DEFAULT_SERVER_SETTINGS,
   TrimmedNonEmptyString,
@@ -100,7 +100,9 @@ type CustomModelSettingsKey =
   | "customGrokModels"
   | "customKiloModels"
   | "customOpenCodeModels"
-  | "customPiModels";
+  | "customPiModels"
+  | "customOllamaModels"
+  | "customLmStudioModels";
 export type ProviderCustomModelConfig = {
   provider: ProviderKind;
   settingsKey: CustomModelSettingsKey;
@@ -120,6 +122,8 @@ const BUILT_IN_MODEL_SLUGS_BY_PROVIDER: Record<ProviderKind, ReadonlySet<string>
   kilo: new Set(getModelOptions("kilo").map((option) => option.slug)),
   opencode: new Set(getModelOptions("opencode").map((option) => option.slug)),
   pi: new Set(getModelOptions("pi").map((option) => option.slug)),
+  ollama: new Set(getModelOptions("ollama").map((option) => option.slug)),
+  lmstudio: new Set(getModelOptions("lmstudio").map((option) => option.slug)),
 };
 
 const withDefaults =
@@ -161,6 +165,10 @@ export const AppSettingsSchema = Schema.Struct({
     withDefaults(() => ""),
   ),
   openCodeExperimentalWebSockets: Schema.Boolean.pipe(withDefaults(() => false)),
+  ollamaBinaryPath: Schema.String.check(Schema.isMaxLength(4096)).pipe(withDefaults(() => "")),
+  ollamaServerUrl: Schema.String.check(Schema.isMaxLength(4096)).pipe(withDefaults(() => "")),
+  lmStudioBinaryPath: Schema.String.check(Schema.isMaxLength(4096)).pipe(withDefaults(() => "")),
+  lmStudioServerUrl: Schema.String.check(Schema.isMaxLength(4096)).pipe(withDefaults(() => "")),
   defaultThreadEnvMode: EnvMode.pipe(withDefaults(() => "local" as const satisfies EnvMode)),
   confirmThreadDelete: Schema.Boolean.pipe(withDefaults(() => true)),
   confirmThreadArchive: Schema.Boolean.pipe(withDefaults(() => false)),
@@ -189,12 +197,16 @@ export const AppSettingsSchema = Schema.Struct({
   showEnvironmentInstructions: Schema.Boolean.pipe(withDefaults(() => true)),
   showEnvironmentNotepad: Schema.Boolean.pipe(withDefaults(() => true)),
   enableAssistantStreaming: Schema.Boolean.pipe(withDefaults(() => false)),
+  assistantDeliveryMode: Schema.optional(AssistantDeliveryMode),
+  maxBufferedAssistantChars: Schema.Number.pipe(withDefaults(() => 24_000)),
   enableNativeFontSmoothing: Schema.Boolean.pipe(withDefaults(getDefaultNativeFontSmoothing)),
   enableTaskCompletionToasts: Schema.Boolean.pipe(withDefaults(() => true)),
   fullWindowTranslucency: Schema.Boolean.pipe(withDefaults(() => false)),
   sidebarTranslucency: Schema.Number.pipe(withDefaults(() => DEFAULT_SIDEBAR_TRANSLUCENCY)),
   mainWindowTranslucency: Schema.Number.pipe(withDefaults(() => DEFAULT_MAIN_WINDOW_TRANSLUCENCY)),
-  appIconVariant: Schema.Literals(["default", "nightly"]).pipe(withDefaults(() => "default" as const)),
+  appIconVariant: Schema.Literals(["default", "nightly"]).pipe(
+    withDefaults(() => "default" as const),
+  ),
   enableSystemTaskCompletionNotifications: Schema.Boolean.pipe(withDefaults(() => true)),
   sidebarProjectSortOrder: SidebarProjectSortOrder.pipe(
     withDefaults(() => DEFAULT_SIDEBAR_PROJECT_SORT_ORDER),
@@ -211,6 +223,8 @@ export const AppSettingsSchema = Schema.Struct({
   customKiloModels: Schema.Array(Schema.String).pipe(withDefaults(() => [])),
   customOpenCodeModels: Schema.Array(Schema.String).pipe(withDefaults(() => [])),
   customPiModels: Schema.Array(Schema.String).pipe(withDefaults(() => [])),
+  customOllamaModels: Schema.Array(Schema.String).pipe(withDefaults(() => [])),
+  customLmStudioModels: Schema.Array(Schema.String).pipe(withDefaults(() => [])),
   textGenerationProvider: ProviderKind.pipe(withDefaults(() => "codex" as const)),
   textGenerationModel: Schema.optional(TrimmedNonEmptyString),
   uiFontFamily: Schema.String.check(Schema.isMaxLength(256)).pipe(withDefaults(() => "")),
@@ -316,6 +330,24 @@ const PROVIDER_CUSTOM_MODEL_CONFIG: Record<ProviderKind, ProviderCustomModelConf
     description: "Save additional Pi model slugs for the picker and provider runtime.",
     placeholder: "provider/model",
     example: "anthropic/claude-sonnet-4-5",
+  },
+  ollama: {
+    provider: "ollama",
+    settingsKey: "customOllamaModels",
+    defaultSettingsKey: "customOllamaModels",
+    title: "Ollama",
+    description: "Save additional Ollama model slugs for the picker and provider runtime.",
+    placeholder: "provider/model",
+    example: "ollama/qwen2.5-coder:32b",
+  },
+  lmstudio: {
+    provider: "lmstudio",
+    settingsKey: "customLmStudioModels",
+    defaultSettingsKey: "customLmStudioModels",
+    title: "LM Studio",
+    description: "Save additional LM Studio model slugs for the picker and provider runtime.",
+    placeholder: "provider/model",
+    example: "lmstudio/qwen2.5-coder-7b",
   },
 };
 
@@ -444,6 +476,11 @@ function normalizeAppSettings(settings: AppSettings): AppSettings {
       settings.openCodeBinaryPath,
     ),
     piBinaryPath: normalizeProviderBinaryPathOverride("pi", settings.piBinaryPath),
+    ollamaBinaryPath: normalizeProviderBinaryPathOverride("ollama", settings.ollamaBinaryPath),
+    lmStudioBinaryPath: normalizeProviderBinaryPathOverride(
+      "lmstudio",
+      settings.lmStudioBinaryPath,
+    ),
     uiDensity: normalizeUiDensityValue(settings.uiDensity),
     chatFontSizePx: normalizeChatFontSizePx(settings.chatFontSizePx),
     terminalFontSizePx: normalizeTerminalFontSizePx(settings.terminalFontSizePx),
@@ -458,6 +495,8 @@ function normalizeAppSettings(settings: AppSettings): AppSettings {
     customKiloModels: normalizeCustomModelSlugs(settings.customKiloModels, "kilo"),
     customOpenCodeModels: normalizeCustomModelSlugs(settings.customOpenCodeModels, "opencode"),
     customPiModels: normalizeCustomModelSlugs(settings.customPiModels, "pi"),
+    customOllamaModels: normalizeCustomModelSlugs(settings.customOllamaModels, "ollama"),
+    customLmStudioModels: normalizeCustomModelSlugs(settings.customLmStudioModels, "lmstudio"),
     hiddenProviders: normalizeHiddenProviders(settings.hiddenProviders),
     providerOrder: normalizeProviderOrder(settings.providerOrder),
     hiddenModels: [],
@@ -484,6 +523,10 @@ function serverSettingsToAppSettings(settings: ServerSettings): Partial<AppSetti
     openCodeServerUrl: settings.providers.opencode.serverUrl,
     piAgentDir: settings.providers.pi.agentDir,
     piBinaryPath: settings.providers.pi.binaryPath,
+    ollamaBinaryPath: settings.providers.ollama.binaryPath,
+    ollamaServerUrl: settings.providers.ollama.serverUrl,
+    lmStudioBinaryPath: settings.providers.lmstudio.binaryPath,
+    lmStudioServerUrl: settings.providers.lmstudio.serverUrl,
     customCodexModels: settings.providers.codex.customModels,
     customClaudeModels: settings.providers.claudeAgent.customModels,
     customCursorModels: settings.providers.cursor.customModels,
@@ -492,6 +535,8 @@ function serverSettingsToAppSettings(settings: ServerSettings): Partial<AppSetti
     customKiloModels: settings.providers.kilo.customModels,
     customOpenCodeModels: settings.providers.opencode.customModels,
     customPiModels: settings.providers.pi.customModels,
+    customOllamaModels: settings.providers.ollama.customModels,
+    customLmStudioModels: settings.providers.lmstudio.customModels,
     textGenerationProvider: settings.textGenerationModelSelection.provider,
     textGenerationModel: settings.textGenerationModelSelection.model,
   };
@@ -521,7 +566,11 @@ function touchesProviderDiscoverySettings(patch: Partial<AppSettings>): boolean 
     hasOwn(patch, "openCodeExperimentalWebSockets") ||
     hasOwn(patch, "openCodeServerPassword") ||
     hasOwn(patch, "openCodeServerUrl") ||
-    hasOwn(patch, "piAgentDir")
+    hasOwn(patch, "piAgentDir") ||
+    hasOwn(patch, "ollamaBinaryPath") ||
+    hasOwn(patch, "ollamaServerUrl") ||
+    hasOwn(patch, "lmStudioBinaryPath") ||
+    hasOwn(patch, "lmStudioServerUrl")
   );
 }
 
@@ -645,6 +694,34 @@ function appSettingsPatchToServerSettingsPatch(patch: Partial<AppSettings>): Ser
       ...(hasOwn(patch, "customPiModels") ? { customModels: patch.customPiModels ?? [] } : {}),
     };
   }
+  if (
+    hasOwn(patch, "ollamaBinaryPath") ||
+    hasOwn(patch, "ollamaServerUrl") ||
+    hasOwn(patch, "customOllamaModels")
+  ) {
+    providers.ollama = {
+      ...(hasOwn(patch, "ollamaBinaryPath") ? { binaryPath: patch.ollamaBinaryPath ?? "" } : {}),
+      ...(hasOwn(patch, "ollamaServerUrl") ? { serverUrl: patch.ollamaServerUrl ?? "" } : {}),
+      ...(hasOwn(patch, "customOllamaModels")
+        ? { customModels: patch.customOllamaModels ?? [] }
+        : {}),
+    };
+  }
+  if (
+    hasOwn(patch, "lmStudioBinaryPath") ||
+    hasOwn(patch, "lmStudioServerUrl") ||
+    hasOwn(patch, "customLmStudioModels")
+  ) {
+    providers.lmstudio = {
+      ...(hasOwn(patch, "lmStudioBinaryPath")
+        ? { binaryPath: patch.lmStudioBinaryPath ?? "" }
+        : {}),
+      ...(hasOwn(patch, "lmStudioServerUrl") ? { serverUrl: patch.lmStudioServerUrl ?? "" } : {}),
+      ...(hasOwn(patch, "customLmStudioModels")
+        ? { customModels: patch.customLmStudioModels ?? [] }
+        : {}),
+    };
+  }
 
   if (Object.keys(providers).length > 0) {
     serverPatch.providers = providers;
@@ -680,6 +757,10 @@ function buildInitialServerSettingsMigrationPatch(settings: AppSettings): Server
     "openCodeServerUrl",
     "piAgentDir",
     "piBinaryPath",
+    "ollamaBinaryPath",
+    "ollamaServerUrl",
+    "lmStudioBinaryPath",
+    "lmStudioServerUrl",
     "textGenerationModel",
     "textGenerationProvider",
   ] as const) {
@@ -697,6 +778,8 @@ function buildInitialServerSettingsMigrationPatch(settings: AppSettings): Server
     "customKiloModels",
     "customOpenCodeModels",
     "customPiModels",
+    "customOllamaModels",
+    "customLmStudioModels",
   ] as const) {
     if (normalizedSettings[key].length > 0) {
       patch[key] = normalizedSettings[key] as never;
@@ -745,6 +828,8 @@ export function getCustomModelsByProvider(
     kilo: getCustomModelsForProvider(settings, "kilo"),
     opencode: getCustomModelsForProvider(settings, "opencode"),
     pi: getCustomModelsForProvider(settings, "pi"),
+    ollama: getCustomModelsForProvider(settings, "ollama"),
+    lmstudio: getCustomModelsForProvider(settings, "lmstudio"),
   };
 }
 
@@ -802,6 +887,8 @@ export function getGitTextGenerationModelOptions(
     | "customCodexModels"
     | "customKiloModels"
     | "customOpenCodeModels"
+    | "customOllamaModels"
+    | "customLmStudioModels"
     | "textGenerationModel"
     | "textGenerationProvider"
   >,
@@ -810,6 +897,8 @@ export function getGitTextGenerationModelOptions(
     ...getAppModelOptions("codex", settings.customCodexModels),
     ...getAppModelOptions("kilo", settings.customKiloModels),
     ...getAppModelOptions("opencode", settings.customOpenCodeModels),
+    ...getAppModelOptions("ollama", settings.customOllamaModels),
+    ...getAppModelOptions("lmstudio", settings.customLmStudioModels),
   ];
   const deduped: AppModelOption[] = [];
   const seen = new Set<string>();
@@ -864,6 +953,8 @@ export function getCustomModelOptionsByProvider(
     kilo: getAppModelOptions("kilo", customModelsByProvider.kilo),
     opencode: getAppModelOptions("opencode", customModelsByProvider.opencode),
     pi: getAppModelOptions("pi", customModelsByProvider.pi),
+    ollama: getAppModelOptions("ollama", customModelsByProvider.ollama),
+    lmstudio: getAppModelOptions("lmstudio", customModelsByProvider.lmstudio),
   };
 }
 
@@ -886,6 +977,10 @@ export function getProviderStartOptions(
     | "openCodeServerUrl"
     | "piAgentDir"
     | "piBinaryPath"
+    | "ollamaBinaryPath"
+    | "ollamaServerUrl"
+    | "lmStudioBinaryPath"
+    | "lmStudioServerUrl"
   >,
 ): ProviderStartOptions | undefined {
   const claudeBinaryPath = normalizeProviderBinaryPathOverride(
@@ -902,6 +997,11 @@ export function getProviderStartOptions(
     settings.openCodeBinaryPath,
   );
   const piBinaryPath = normalizeProviderBinaryPathOverride("pi", settings.piBinaryPath);
+  const ollamaBinaryPath = normalizeProviderBinaryPathOverride("ollama", settings.ollamaBinaryPath);
+  const lmStudioBinaryPath = normalizeProviderBinaryPathOverride(
+    "lmstudio",
+    settings.lmStudioBinaryPath,
+  );
   const hasOpenCodeStartOptions = Boolean(
     openCodeBinaryPath ||
     settings.openCodeExperimentalWebSockets ||
@@ -975,6 +1075,22 @@ export function getProviderStartOptions(
           },
         }
       : {}),
+    ...(ollamaBinaryPath || settings.ollamaServerUrl
+      ? {
+          ollama: {
+            ...(ollamaBinaryPath ? { binaryPath: ollamaBinaryPath } : {}),
+            ...(settings.ollamaServerUrl ? { serverUrl: settings.ollamaServerUrl } : {}),
+          },
+        }
+      : {}),
+    ...(lmStudioBinaryPath || settings.lmStudioServerUrl
+      ? {
+          lmstudio: {
+            ...(lmStudioBinaryPath ? { binaryPath: lmStudioBinaryPath } : {}),
+            ...(settings.lmStudioServerUrl ? { serverUrl: settings.lmStudioServerUrl } : {}),
+          },
+        }
+      : {}),
   };
 
   return Object.keys(providerOptions).length > 0 ? providerOptions : undefined;
@@ -983,11 +1099,22 @@ export function getProviderStartOptions(
 /**
  * Single source of truth for mapping the streaming preference onto the orchestration
  * delivery mode used when dispatching turns (composer, chat, and kanban share this).
+ * Prefers the explicit `assistantDeliveryMode` setting, falling back to the legacy
+ * `enableAssistantStreaming` boolean.
  */
 export function resolveAssistantDeliveryMode(
-  settings: Pick<AppSettings, "enableAssistantStreaming">,
+  settings: Pick<AppSettings, "enableAssistantStreaming" | "assistantDeliveryMode">,
 ): AssistantDeliveryMode {
+  if (settings.assistantDeliveryMode !== undefined) {
+    return settings.assistantDeliveryMode;
+  }
   return settings.enableAssistantStreaming ? "streaming" : "buffered";
+}
+
+export function resolveMaxBufferedAssistantChars(
+  settings: Pick<AppSettings, "maxBufferedAssistantChars">,
+): number {
+  return settings.maxBufferedAssistantChars;
 }
 
 export function getCustomBinaryPathForProvider(
@@ -1001,6 +1128,8 @@ export function getCustomBinaryPathForProvider(
     | "kiloBinaryPath"
     | "openCodeBinaryPath"
     | "piBinaryPath"
+    | "ollamaBinaryPath"
+    | "lmStudioBinaryPath"
   >,
   provider: ProviderKind,
 ): string {
@@ -1021,6 +1150,10 @@ export function getCustomBinaryPathForProvider(
       return normalizeProviderBinaryPathOverride(provider, settings.openCodeBinaryPath);
     case "pi":
       return normalizeProviderBinaryPathOverride(provider, settings.piBinaryPath);
+    case "ollama":
+      return normalizeProviderBinaryPathOverride(provider, settings.ollamaBinaryPath);
+    case "lmstudio":
+      return normalizeProviderBinaryPathOverride(provider, settings.lmStudioBinaryPath);
   }
 }
 

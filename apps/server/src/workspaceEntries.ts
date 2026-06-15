@@ -16,6 +16,8 @@ import {
   ProjectListDirectoriesResult,
   ProjectEntry,
   ProjectLocalSearchEntry,
+  ProjectSearchContentInput,
+  ProjectSearchContentResult,
   ProjectSearchEntriesInput,
   ProjectSearchEntriesResult,
   ProjectSearchLocalEntriesInput,
@@ -1146,6 +1148,108 @@ export async function searchLocalEntries(
 
   return {
     entries: ranked.map((candidate) => candidate.entry),
+    truncated,
+  };
+}
+
+export async function searchWorkspaceContent(
+  input: ProjectSearchContentInput,
+): Promise<ProjectSearchContentResult> {
+  const { cwd, query, limit = 100 } = input;
+  const isGit = await isInsideGitWorkTree(cwd);
+
+  let stdout = "";
+  if (isGit) {
+    const result = await runProcess("git", ["grep", "-nI", "--no-color", "-e", query], {
+      cwd,
+      allowNonZeroExit: true,
+      timeoutMs: 15_000,
+      maxBufferBytes: 16 * 1024 * 1024,
+    });
+    if (result.code === 0 || result.code === 1) {
+      stdout = result.stdout;
+    } else {
+      throw new Error(`Git grep failed with code ${result.code}: ${result.stderr}`);
+    }
+  } else {
+    const result = await runProcess(
+      "grep",
+      [
+        "-rnI",
+        "--color=never",
+        "--exclude-dir=node_modules",
+        "--exclude-dir=.git",
+        "--exclude-dir=.next",
+        "--exclude-dir=.gemini",
+        "--exclude-dir=dist",
+        "-e",
+        query,
+        ".",
+      ],
+      {
+        cwd,
+        allowNonZeroExit: true,
+        timeoutMs: 15_000,
+        maxBufferBytes: 16 * 1024 * 1024,
+      },
+    );
+    if (result.code === 0 || result.code === 1) {
+      stdout = result.stdout;
+    } else {
+      throw new Error(`Grep failed with code ${result.code}: ${result.stderr}`);
+    }
+  }
+
+  // Parse output
+  const lines = stdout.split(/\r?\n/);
+  const matchMap = new Map<string, { lineNumber: number; lineContent: string }[]>();
+  let matchCount = 0;
+  let truncated = false;
+
+  for (const line of lines) {
+    if (!line.trim()) {
+      continue;
+    }
+    // Format is <path>:<line>:<content>
+    const firstColon = line.indexOf(":");
+    if (firstColon === -1) continue;
+    const secondColon = line.indexOf(":", firstColon + 1);
+    if (secondColon === -1) continue;
+
+    let filePath = line.slice(0, firstColon);
+    const lineNumStr = line.slice(firstColon + 1, secondColon);
+    const lineContent = line.slice(secondColon + 1);
+
+    const lineNumber = parseInt(lineNumStr, 10);
+    if (isNaN(lineNumber)) continue;
+
+    // Normalize path
+    if (filePath.startsWith("./") || filePath.startsWith(".\\")) {
+      filePath = filePath.slice(2);
+    }
+    filePath = filePath.replace(/\\/g, "/");
+
+    if (matchCount >= limit) {
+      truncated = true;
+      break;
+    }
+
+    let fileMatches = matchMap.get(filePath);
+    if (!fileMatches) {
+      fileMatches = [];
+      matchMap.set(filePath, fileMatches);
+    }
+    fileMatches.push({ lineNumber, lineContent });
+    matchCount++;
+  }
+
+  const results = Array.from(matchMap.entries()).map(([filePath, matches]) => ({
+    path: filePath,
+    matches,
+  }));
+
+  return {
+    results,
     truncated,
   };
 }

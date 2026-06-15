@@ -73,6 +73,20 @@ export const PiServerProviderSettings = Schema.Struct({
 });
 export type PiServerProviderSettings = typeof PiServerProviderSettings.Type;
 
+export const OllamaServerProviderSettings = Schema.Struct({
+  ...ProviderSettingsBase,
+  binaryPath: StringSetting.pipe(Schema.withDecodingDefault(() => "ollama")),
+  serverUrl: StringSetting.pipe(Schema.withDecodingDefault(() => "http://127.0.0.1:11434")),
+});
+export type OllamaServerProviderSettings = typeof OllamaServerProviderSettings.Type;
+
+export const LmStudioServerProviderSettings = Schema.Struct({
+  ...ProviderSettingsBase,
+  binaryPath: StringSetting.pipe(Schema.withDecodingDefault(() => "lmstudio")),
+  serverUrl: StringSetting.pipe(Schema.withDecodingDefault(() => "http://127.0.0.1:1234")),
+});
+export type LmStudioServerProviderSettings = typeof LmStudioServerProviderSettings.Type;
+
 const DisabledSkillNames = Schema.Array(Schema.String.check(Schema.isMaxLength(256))).pipe(
   Schema.withDecodingDefault(() => []),
 );
@@ -103,6 +117,8 @@ export const ServerSettings = Schema.Struct({
     kilo: KiloServerProviderSettings.pipe(Schema.withDecodingDefault(() => ({}))),
     opencode: OpenCodeServerProviderSettings.pipe(Schema.withDecodingDefault(() => ({}))),
     pi: PiServerProviderSettings.pipe(Schema.withDecodingDefault(() => ({}))),
+    ollama: OllamaServerProviderSettings.pipe(Schema.withDecodingDefault(() => ({}))),
+    lmstudio: LmStudioServerProviderSettings.pipe(Schema.withDecodingDefault(() => ({}))),
   }).pipe(Schema.withDecodingDefault(() => ({}))),
   skills: SkillsServerSettings.pipe(Schema.withDecodingDefault(() => ({}))),
 });
@@ -169,6 +185,18 @@ export const ServerSettingsPatch = Schema.Struct({
           ...ProviderSettingsBasePatch,
           binaryPath: Schema.optionalKey(StringSetting),
           agentDir: Schema.optionalKey(StringSetting),
+        }),
+      ),
+      ollama: Schema.optionalKey(
+        Schema.Struct({
+          ...ProviderSettingsBasePatch,
+          serverUrl: Schema.optionalKey(StringSetting),
+        }),
+      ),
+      lmstudio: Schema.optionalKey(
+        Schema.Struct({
+          ...ProviderSettingsBasePatch,
+          serverUrl: Schema.optionalKey(StringSetting),
         }),
       ),
     }),

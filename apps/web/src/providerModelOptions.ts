@@ -21,6 +21,8 @@ import type {
   OpenCodeModelSelection,
   PiModelOptions,
   PiModelSelection,
+  OllamaModelSelection,
+  LmStudioModelSelection,
   ProviderKind,
   ProviderModelOptions,
 } from "@t3tools/contracts";
@@ -354,6 +356,16 @@ export function buildModelSelection(
   options?: PiModelOptions | null | undefined,
 ): PiModelSelection;
 export function buildModelSelection(
+  provider: "ollama",
+  model: string,
+  options?: OpenCodeModelOptions | null | undefined,
+): OllamaModelSelection;
+export function buildModelSelection(
+  provider: "lmstudio",
+  model: string,
+  options?: OpenCodeModelOptions | null | undefined,
+): LmStudioModelSelection;
+export function buildModelSelection(
   provider: ProviderKind,
   model: string,
   options?: ProviderOptions | null | undefined,
@@ -426,6 +438,22 @@ export function buildModelSelection(
             provider,
             model,
             options: options as PiModelOptions,
+          }
+        : { provider, model };
+    case "ollama":
+      return options
+        ? {
+            provider,
+            model,
+            options: options as OpenCodeModelOptions,
+          }
+        : { provider, model };
+    case "lmstudio":
+      return options
+        ? {
+            provider,
+            model,
+            options: options as OpenCodeModelOptions,
           }
         : { provider, model };
   }

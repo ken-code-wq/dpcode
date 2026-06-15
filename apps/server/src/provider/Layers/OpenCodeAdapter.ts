@@ -41,6 +41,8 @@ import {
 } from "../Errors.ts";
 import { KiloAdapter, type KiloAdapterShape } from "../Services/KiloAdapter.ts";
 import { OpenCodeAdapter, type OpenCodeAdapterShape } from "../Services/OpenCodeAdapter.ts";
+import { OllamaAdapter, type OllamaAdapterShape } from "../Services/OllamaAdapter.ts";
+import { LmStudioAdapter, type LmStudioAdapterShape } from "../Services/LmStudioAdapter.ts";
 import {
   buildOpenCodePermissionRules,
   KILO_CLI_SPEC,
@@ -63,7 +65,10 @@ import {
 } from "../opencodeRuntime.ts";
 import { extractProposedPlanMarkdown, withProviderPlanModePrompt } from "../planMode.ts";
 
-type OpenCodeCompatibleProvider = Extract<ProviderKind, "opencode" | "kilo">;
+type OpenCodeCompatibleProvider = Extract<
+  ProviderKind,
+  "opencode" | "kilo" | "ollama" | "lmstudio"
+>;
 
 interface OpenCodeCompatibleAdapterConfig {
   readonly provider: OpenCodeCompatibleProvider;
@@ -105,6 +110,34 @@ const KILO_ADAPTER_CONFIG: OpenCodeCompatibleAdapterConfig = {
   defaultAgent: "code",
   planAgent: "plan",
   cliSpec: KILO_CLI_SPEC,
+};
+
+const OLLAMA_ADAPTER_CONFIG: OpenCodeCompatibleAdapterConfig = {
+  provider: "ollama",
+  displayName: "Ollama",
+  defaultBinaryPath: "ollama",
+  providerOptionsKey: "ollama",
+  runtimeEventSource: "opencode.sdk.event",
+  turnIdPrefix: "ollama-turn",
+  cliModelSource: "ollama-cli",
+  fallbackModelSource: "ollama",
+  defaultAgent: "build",
+  planAgent: "plan",
+  cliSpec: OPENCODE_CLI_SPEC,
+};
+
+const LMSTUDIO_ADAPTER_CONFIG: OpenCodeCompatibleAdapterConfig = {
+  provider: "lmstudio",
+  displayName: "LM Studio",
+  defaultBinaryPath: "lmstudio",
+  providerOptionsKey: "lmstudio",
+  runtimeEventSource: "opencode.sdk.event",
+  turnIdPrefix: "lmstudio-turn",
+  cliModelSource: "lmstudio-cli",
+  fallbackModelSource: "lmstudio",
+  defaultAgent: "build",
+  planAgent: "plan",
+  cliSpec: OPENCODE_CLI_SPEC,
 };
 
 const OPENCODE_PROMPT_ACCEPTED_ACTIVITY_TIMEOUT_MS = 60_000;
@@ -3608,7 +3641,14 @@ export function makeOpenCodeAdapterLive(options?: OpenCodeAdapterLiveOptions) {
         function* (input) {
           const providerOptions = input.providerOptions?.[adapterConfig.providerOptionsKey];
           const binaryPath = providerOptions?.binaryPath?.trim() || adapterConfig.defaultBinaryPath;
-          const serverUrl = providerOptions?.serverUrl?.trim();
+          let serverUrl = providerOptions?.serverUrl?.trim();
+          if (!serverUrl) {
+            if (adapterConfig.provider === "ollama") {
+              serverUrl = "http://127.0.0.1:11434";
+            } else if (adapterConfig.provider === "lmstudio") {
+              serverUrl = "http://127.0.0.1:1234";
+            }
+          }
           const serverPassword = providerOptions?.serverPassword?.trim();
           const experimentalWebSockets =
             adapterConfig.providerOptionsKey === "opencode"
@@ -4147,7 +4187,14 @@ export function makeOpenCodeAdapterLive(options?: OpenCodeAdapterLiveOptions) {
 
           const providerOptions = input.providerOptions?.[adapterConfig.providerOptionsKey];
           const binaryPath = providerOptions?.binaryPath?.trim() || adapterConfig.defaultBinaryPath;
-          const serverUrl = providerOptions?.serverUrl?.trim();
+          let serverUrl = providerOptions?.serverUrl?.trim();
+          if (!serverUrl) {
+            if (adapterConfig.provider === "ollama") {
+              serverUrl = "http://127.0.0.1:11434";
+            } else if (adapterConfig.provider === "lmstudio") {
+              serverUrl = "http://127.0.0.1:1234";
+            }
+          }
           const serverPassword = providerOptions?.serverPassword?.trim();
           const directory = input.cwd ?? sourceContext?.directory ?? serverConfig.cwd;
 
@@ -4490,3 +4537,37 @@ export function makeKiloAdapterLive(options?: Omit<OpenCodeAdapterLiveOptions, "
 }
 
 export const KiloAdapterLive = makeKiloAdapterLive();
+
+export function makeOllamaAdapterLive(options?: Omit<OpenCodeAdapterLiveOptions, "adapterConfig">) {
+  const ollamaOpenCodeCompatibleLayer = makeOpenCodeAdapterLive({
+    ...options,
+    adapterConfig: OLLAMA_ADAPTER_CONFIG,
+  });
+  return Layer.effect(
+    OllamaAdapter,
+    Effect.gen(function* () {
+      const adapter = yield* OpenCodeAdapter;
+      return adapter as unknown as OllamaAdapterShape;
+    }),
+  ).pipe(Layer.provide(ollamaOpenCodeCompatibleLayer));
+}
+
+export const OllamaAdapterLive = makeOllamaAdapterLive();
+
+export function makeLmStudioAdapterLive(
+  options?: Omit<OpenCodeAdapterLiveOptions, "adapterConfig">,
+) {
+  const lmStudioOpenCodeCompatibleLayer = makeOpenCodeAdapterLive({
+    ...options,
+    adapterConfig: LMSTUDIO_ADAPTER_CONFIG,
+  });
+  return Layer.effect(
+    LmStudioAdapter,
+    Effect.gen(function* () {
+      const adapter = yield* OpenCodeAdapter;
+      return adapter as unknown as LmStudioAdapterShape;
+    }),
+  ).pipe(Layer.provide(lmStudioOpenCodeCompatibleLayer));
+}
+
+export const LmStudioAdapterLive = makeLmStudioAdapterLive();

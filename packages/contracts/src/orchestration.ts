@@ -57,6 +57,8 @@ export const ProviderKind = Schema.Literals([
   "kilo",
   "opencode",
   "pi",
+  "ollama",
+  "lmstudio",
 ]);
 export type ProviderKind = typeof ProviderKind.Type;
 export const ProviderApprovalPolicy = Schema.Literals([
@@ -130,6 +132,20 @@ export const PiModelSelection = Schema.Struct({
 });
 export type PiModelSelection = typeof PiModelSelection.Type;
 
+export const OllamaModelSelection = Schema.Struct({
+  provider: Schema.Literal("ollama"),
+  model: TrimmedNonEmptyString,
+  options: Schema.optional(OpenCodeModelOptions),
+});
+export type OllamaModelSelection = typeof OllamaModelSelection.Type;
+
+export const LmStudioModelSelection = Schema.Struct({
+  provider: Schema.Literal("lmstudio"),
+  model: TrimmedNonEmptyString,
+  options: Schema.optional(OpenCodeModelOptions),
+});
+export type LmStudioModelSelection = typeof LmStudioModelSelection.Type;
+
 export const ModelSelection = Schema.Union([
   CodexModelSelection,
   ClaudeModelSelection,
@@ -139,6 +155,8 @@ export const ModelSelection = Schema.Union([
   KiloModelSelection,
   OpenCodeModelSelection,
   PiModelSelection,
+  OllamaModelSelection,
+  LmStudioModelSelection,
 ]);
 export type ModelSelection = typeof ModelSelection.Type;
 
@@ -184,6 +202,16 @@ export const PiProviderStartOptions = Schema.Struct({
   agentDir: Schema.optional(TrimmedNonEmptyString),
 });
 
+export const OllamaProviderStartOptions = Schema.Struct({
+  binaryPath: Schema.optional(TrimmedNonEmptyString),
+  serverUrl: Schema.optional(TrimmedNonEmptyString),
+});
+
+export const LmStudioProviderStartOptions = Schema.Struct({
+  binaryPath: Schema.optional(TrimmedNonEmptyString),
+  serverUrl: Schema.optional(TrimmedNonEmptyString),
+});
+
 export const ProviderStartOptions = Schema.Struct({
   codex: Schema.optional(CodexProviderStartOptions),
   claudeAgent: Schema.optional(ClaudeProviderStartOptions),
@@ -193,6 +221,8 @@ export const ProviderStartOptions = Schema.Struct({
   kilo: Schema.optional(KiloProviderStartOptions),
   opencode: Schema.optional(OpenCodeProviderStartOptions),
   pi: Schema.optional(PiProviderStartOptions),
+  ollama: Schema.optional(OllamaProviderStartOptions),
+  lmstudio: Schema.optional(LmStudioProviderStartOptions),
 });
 export type ProviderStartOptions = typeof ProviderStartOptions.Type;
 
@@ -1010,6 +1040,7 @@ export const ThreadTurnStartCommand = Schema.Struct({
   providerOptions: Schema.optional(ProviderStartOptions),
   reviewTarget: Schema.optional(ProviderReviewTarget),
   assistantDeliveryMode: Schema.optional(AssistantDeliveryMode),
+  maxBufferedAssistantChars: Schema.optional(PositiveInt),
   dispatchMode: Schema.optional(TurnDispatchMode).pipe(
     Schema.withDecodingDefault(() => DEFAULT_TURN_DISPATCH_MODE),
   ),
@@ -1037,6 +1068,7 @@ const ClientThreadTurnStartCommand = Schema.Struct({
   providerOptions: Schema.optional(ProviderStartOptions),
   reviewTarget: Schema.optional(ProviderReviewTarget),
   assistantDeliveryMode: Schema.optional(AssistantDeliveryMode),
+  maxBufferedAssistantChars: Schema.optional(PositiveInt),
   dispatchMode: Schema.optional(TurnDispatchMode).pipe(
     Schema.withDecodingDefault(() => DEFAULT_TURN_DISPATCH_MODE),
   ),
@@ -1063,6 +1095,7 @@ const ThreadDispatchQueuedTurnCommand = Schema.Struct({
   providerOptions: Schema.optional(ProviderStartOptions),
   reviewTarget: Schema.optional(ProviderReviewTarget),
   assistantDeliveryMode: Schema.optional(AssistantDeliveryMode),
+  maxBufferedAssistantChars: Schema.optional(PositiveInt),
   dispatchMode: Schema.optional(TurnDispatchMode).pipe(
     Schema.withDecodingDefault(() => DEFAULT_TURN_DISPATCH_MODE),
   ),
@@ -1118,6 +1151,7 @@ const ThreadMessageEditAndResendCommand = Schema.Struct({
   modelSelection: Schema.optional(ModelSelection),
   providerOptions: Schema.optional(ProviderStartOptions),
   assistantDeliveryMode: Schema.optional(AssistantDeliveryMode),
+  maxBufferedAssistantChars: Schema.optional(PositiveInt),
   runtimeMode: RuntimeMode,
   interactionMode: ProviderInteractionMode,
   createdAt: IsoDateTime,
@@ -1553,6 +1587,7 @@ export const ThreadTurnStartRequestedPayload = Schema.Struct({
   providerOptions: Schema.optional(ProviderStartOptions),
   reviewTarget: Schema.optional(ProviderReviewTarget),
   assistantDeliveryMode: Schema.optional(AssistantDeliveryMode),
+  maxBufferedAssistantChars: Schema.optional(PositiveInt),
   dispatchMode: TurnDispatchMode.pipe(Schema.withDecodingDefault(() => DEFAULT_TURN_DISPATCH_MODE)),
   runtimeMode: RuntimeMode.pipe(Schema.withDecodingDefault(() => DEFAULT_RUNTIME_MODE)),
   interactionMode: ProviderInteractionMode.pipe(
@@ -1619,6 +1654,7 @@ export const ThreadMessageEditResendRequestedPayload = Schema.Struct({
   modelSelection: Schema.optional(ModelSelection),
   providerOptions: Schema.optional(ProviderStartOptions),
   assistantDeliveryMode: Schema.optional(AssistantDeliveryMode),
+  maxBufferedAssistantChars: Schema.optional(PositiveInt),
   runtimeMode: RuntimeMode,
   interactionMode: ProviderInteractionMode,
   createdAt: IsoDateTime,

@@ -64,6 +64,8 @@ function serverSettings(overrides: Partial<ServerSettings["providers"]> = {}): S
         experimentalWebSockets: false,
       },
       pi: { ...provider, binaryPath: "pi", agentDir: "" },
+      ollama: { ...provider, binaryPath: "ollama", serverUrl: "" },
+      lmstudio: { ...provider, binaryPath: "lmstudio", serverUrl: "" },
       ...overrides,
     },
     skills: { disabled: [] },

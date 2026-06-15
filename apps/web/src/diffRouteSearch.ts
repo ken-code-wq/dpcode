@@ -10,6 +10,7 @@ export interface DiffRouteSearch {
   splitViewId?: string | undefined;
   view?: "editor" | undefined;
   editorFilePath?: string | undefined;
+  editorLine?: string | undefined;
   panel?: ChatRightPanel | undefined;
   diff?: "1" | undefined;
   diffTurnId?: TurnId | undefined;
@@ -46,6 +47,7 @@ export function parseDiffRouteSearch(search: Record<string, unknown>): DiffRoute
   const viewRaw = normalizeSearchString(search.view);
   const view = viewRaw === "editor" ? "editor" : undefined;
   const editorFilePath = view ? normalizeSearchString(search.editorFilePath) : undefined;
+  const editorLine = view ? normalizeSearchString(search.editorLine) : undefined;
   const panelRaw = normalizeSearchString(search.panel);
   const panel: ChatRightPanel | undefined =
     panelRaw === "browser" ? "browser" : panelRaw === "diff" ? "diff" : undefined;
@@ -59,6 +61,7 @@ export function parseDiffRouteSearch(search: Record<string, unknown>): DiffRoute
     ...(splitViewId ? { splitViewId } : {}),
     ...(view ? { view } : {}),
     ...(editorFilePath ? { editorFilePath } : {}),
+    ...(editorLine ? { editorLine } : {}),
     ...(resolvedPanel ? { panel: resolvedPanel } : {}),
     ...(diff ? { diff } : {}),
     ...(diffTurnId ? { diffTurnId } : {}),

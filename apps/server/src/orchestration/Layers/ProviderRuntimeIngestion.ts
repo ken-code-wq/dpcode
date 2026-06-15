@@ -1197,6 +1197,7 @@ const make = Effect.gen(function* () {
   const assistantDeliveryModeRef = yield* Ref.make<AssistantDeliveryMode>(
     DEFAULT_ASSISTANT_DELIVERY_MODE,
   );
+  const maxBufferedAssistantCharsRef = yield* Ref.make<number>(MAX_BUFFERED_ASSISTANT_CHARS);
 
   const turnMessageIdsByTurnKey = yield* Cache.make<string, Set<MessageId>>({
     capacity: TURN_MESSAGE_IDS_BY_TURN_CACHE_CAPACITY,
@@ -1332,19 +1333,22 @@ const make = Effect.gen(function* () {
     Cache.invalidate(turnMessageIdsByTurnKey, providerTurnKey(threadId, turnId));
 
   const appendBufferedAssistantText = (messageId: MessageId, delta: string) =>
-    Cache.getOption(bufferedAssistantTextByMessageId, messageId).pipe(
-      Effect.flatMap((existingText) =>
+    Effect.Do.pipe(
+      Effect.bind("maxChars", () => Ref.get(maxBufferedAssistantCharsRef)),
+      Effect.bind("existingText", () =>
+        Cache.getOption(bufferedAssistantTextByMessageId, messageId),
+      ),
+      Effect.flatMap(({ maxChars, existingText }) =>
         Effect.gen(function* () {
           const nextText = Option.match(existingText, {
             onNone: () => delta,
             onSome: (text) => `${text}${delta}`,
           });
-          if (nextText.length <= MAX_BUFFERED_ASSISTANT_CHARS) {
+          if (nextText.length <= maxChars) {
             yield* Cache.set(bufferedAssistantTextByMessageId, messageId, nextText);
             return "";
           }
 
-          // Safety valve: flush full buffered text as an assistant delta to cap memory.
           yield* Cache.invalidate(bufferedAssistantTextByMessageId, messageId);
           return nextText;
         }),
@@ -2458,6 +2462,9 @@ const make = Effect.gen(function* () {
       const nextAssistantDeliveryMode =
         event.payload.assistantDeliveryMode ?? DEFAULT_ASSISTANT_DELIVERY_MODE;
       yield* Ref.set(assistantDeliveryModeRef, nextAssistantDeliveryMode);
+      if (event.payload.maxBufferedAssistantChars !== undefined) {
+        yield* Ref.set(maxBufferedAssistantCharsRef, event.payload.maxBufferedAssistantChars);
+      }
       if (nextAssistantDeliveryMode !== "streaming") {
         return;
       }

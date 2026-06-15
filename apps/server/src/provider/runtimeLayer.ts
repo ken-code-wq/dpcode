@@ -12,7 +12,12 @@ import { makeCursorAdapterLive } from "./Layers/CursorAdapter";
 import { makeEventNdjsonLogger } from "./Layers/EventNdjsonLogger";
 import { makeGeminiAdapterLive } from "./Layers/GeminiAdapter";
 import { makeGrokAdapterLive } from "./Layers/GrokAdapter";
-import { makeKiloAdapterLive, makeOpenCodeAdapterLive } from "./Layers/OpenCodeAdapter";
+import {
+  makeKiloAdapterLive,
+  makeOpenCodeAdapterLive,
+  makeOllamaAdapterLive,
+  makeLmStudioAdapterLive,
+} from "./Layers/OpenCodeAdapter";
 import { makePiAdapterLive } from "./Layers/PiAdapter";
 import { ProviderAdapterRegistryLive } from "./Layers/ProviderAdapterRegistry";
 import { ProviderDiscoveryServiceLive } from "./Layers/ProviderDiscoveryService";
@@ -61,6 +66,12 @@ export function makeServerProviderLayer(): Layer.Layer<
     const kiloAdapterLayer = makeKiloAdapterLive(
       nativeEventLogger ? { nativeEventLogger } : undefined,
     );
+    const ollamaAdapterLayer = makeOllamaAdapterLive(
+      nativeEventLogger ? { nativeEventLogger } : undefined,
+    );
+    const lmstudioAdapterLayer = makeLmStudioAdapterLive(
+      nativeEventLogger ? { nativeEventLogger } : undefined,
+    );
     const geminiAdapterLayer = makeGeminiAdapterLive(
       nativeEventLogger ? { nativeEventLogger } : undefined,
     );
@@ -81,6 +92,8 @@ export function makeServerProviderLayer(): Layer.Layer<
       Layer.provide(grokAdapterLayer),
       Layer.provide(kiloAdapterLayer),
       Layer.provide(openCodeAdapterLayer),
+      Layer.provide(ollamaAdapterLayer),
+      Layer.provide(lmstudioAdapterLayer),
       Layer.provide(piAdapterLayer),
       Layer.provideMerge(providerSessionDirectoryLayer),
     );

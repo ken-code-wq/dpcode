@@ -34,6 +34,8 @@ const MODEL_SLUG_SET_BY_PROVIDER: Record<ProviderKind, ReadonlySet<ModelSlug>> =
   kilo: new Set(MODEL_OPTIONS_BY_PROVIDER.kilo.map((option) => option.slug)),
   opencode: new Set(MODEL_OPTIONS_BY_PROVIDER.opencode.map((option) => option.slug)),
   pi: new Set<ModelSlug>(),
+  ollama: new Set(MODEL_OPTIONS_BY_PROVIDER.ollama.map((option) => option.slug)),
+  lmstudio: new Set(MODEL_OPTIONS_BY_PROVIDER.lmstudio.map((option) => option.slug)),
 };
 
 export interface SelectableModelOption {

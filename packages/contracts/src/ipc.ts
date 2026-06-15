@@ -62,6 +62,8 @@ import type {
   ProjectReadFileResult,
   ProjectRunDevServerInput,
   ProjectRunDevServerResult,
+  ProjectSearchContentInput,
+  ProjectSearchContentResult,
   ProjectSearchEntriesInput,
   ProjectSearchEntriesResult,
   ProjectSearchLocalEntriesInput,
@@ -404,6 +406,7 @@ export interface NativeApi {
     ) => Promise<ProjectSearchLocalEntriesResult>;
     readFile: (input: ProjectReadFileInput) => Promise<ProjectReadFileResult>;
     writeFile: (input: ProjectWriteFileInput) => Promise<ProjectWriteFileResult>;
+    searchContent: (input: ProjectSearchContentInput) => Promise<ProjectSearchContentResult>;
     runDevServer: (input: ProjectRunDevServerInput) => Promise<ProjectRunDevServerResult>;
     stopDevServer: (input: ProjectStopDevServerInput) => Promise<ProjectStopDevServerResult>;
     listDevServers: () => Promise<ProjectListDevServersResult>;

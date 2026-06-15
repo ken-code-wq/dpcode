@@ -8,8 +8,18 @@ import * as Path from "node:path";
 
 const DEV_USER_DATA_DIR_NAME = "tyde-dev";
 const PROD_USER_DATA_DIR_NAME = "tyde";
-const DEV_LEGACY_USER_DATA_DIR_NAMES = ["dpcode-dev", "t3code-dev", "DP Code (Dev)", "synara-dev-dev"] as const;
-const PROD_LEGACY_USER_DATA_DIR_NAMES = ["dpcode", "t3code", "DP Code (Alpha)", "synara-dev"] as const;
+const DEV_LEGACY_USER_DATA_DIR_NAMES = [
+  "dpcode-dev",
+  "t3code-dev",
+  "DP Code (Dev)",
+  "synara-dev-dev",
+] as const;
+const PROD_LEGACY_USER_DATA_DIR_NAMES = [
+  "dpcode",
+  "t3code",
+  "DP Code (Alpha)",
+  "synara-dev",
+] as const;
 const PROFILE_SEED_ENTRY_NAMES = [
   "Local Storage",
   "IndexedDB",

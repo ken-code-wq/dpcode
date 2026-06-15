@@ -691,7 +691,10 @@ export function buildThemeCssVariables(
   const fullWindowTranslucencyActive = userForcedTranslucency && material === "translucent";
   // Normalize translucency values (0-100) with sensible defaults
   const sidebarTranslucencyPercent = Math.max(0, Math.min(100, options?.sidebarTranslucency ?? 72));
-  const mainWindowTranslucencyPercent = Math.max(0, Math.min(100, options?.mainWindowTranslucency ?? 100));
+  const mainWindowTranslucencyPercent = Math.max(
+    0,
+    Math.min(100, options?.mainWindowTranslucency ?? 100),
+  );
   const resolvedTokens = buildResolvedThemeTokens(pack, variant, fullWindowTranslucencyActive);
   const codexVariables = resolvedTokens.codexVariables;
   const readCodexVariable = (name: string) => getRequiredVariable(codexVariables, name);
@@ -742,7 +745,7 @@ export function buildThemeCssVariables(
     "--app-user-message-background": chatCodeSurface,
     "--app-sidebar-backdrop-filter":
       material === "translucent" && sidebarTranslucencyPercent > 0
-        ? `blur(${Math.round(8 * sidebarTranslucencyPercent / 100)}px) saturate(${Math.round(100 + 35 * sidebarTranslucencyPercent / 100)}%)`
+        ? `blur(${Math.round((8 * sidebarTranslucencyPercent) / 100)}px) saturate(${Math.round(100 + (35 * sidebarTranslucencyPercent) / 100)}%)`
         : "none",
     // Settings mirrors the chat surface (opaque --color-background-surface) so every
     // settings element reads as outline-only. With an opaque page there is nothing to
@@ -820,7 +823,12 @@ export function buildResolvedThemeTokens(
       ? buildLightDerivedTokens(computedTheme)
       : buildDarkDerivedTokens(computedTheme);
   const panel = buildPanelBackground(computedTheme);
-  const codexVariables = buildCodexCssVariables(computedTheme, derived, panel, fullWindowTranslucency);
+  const codexVariables = buildCodexCssVariables(
+    computedTheme,
+    derived,
+    panel,
+    fullWindowTranslucency,
+  );
 
   return {
     aliases: buildThemeTokenAliases(codexVariables),

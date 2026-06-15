@@ -136,6 +136,8 @@ export const ProviderModelOptions = Schema.Struct({
   kilo: Schema.optional(OpenCodeModelOptions),
   opencode: Schema.optional(OpenCodeModelOptions),
   pi: Schema.optional(PiModelOptions),
+  ollama: Schema.optional(OpenCodeModelOptions),
+  lmstudio: Schema.optional(OpenCodeModelOptions),
 });
 export type ProviderModelOptions = typeof ProviderModelOptions.Type;
 
@@ -467,6 +469,65 @@ export const MODEL_OPTIONS_BY_PROVIDER = {
       },
     },
   ],
+  ollama: [
+    {
+      slug: "ollama/qwen2.5-coder:7b",
+      name: "Ollama Qwen 2.5 Coder 7B",
+      capabilities: {
+        reasoningEffortLevels: [],
+        supportsFastMode: false,
+        supportsThinkingToggle: false,
+        promptInjectedEffortLevels: [],
+        contextWindowOptions: [],
+      },
+    },
+    {
+      slug: "ollama/qwen2.5-coder:14b",
+      name: "Ollama Qwen 2.5 Coder 14B",
+      capabilities: {
+        reasoningEffortLevels: [],
+        supportsFastMode: false,
+        supportsThinkingToggle: false,
+        promptInjectedEffortLevels: [],
+        contextWindowOptions: [],
+      },
+    },
+    {
+      slug: "ollama/qwen2.5-coder:32b",
+      name: "Ollama Qwen 2.5 Coder 32B",
+      capabilities: {
+        reasoningEffortLevels: [],
+        supportsFastMode: false,
+        supportsThinkingToggle: false,
+        promptInjectedEffortLevels: [],
+        contextWindowOptions: [],
+      },
+    },
+    {
+      slug: "ollama/llama3.1:8b",
+      name: "Ollama Llama 3.1 8B",
+      capabilities: {
+        reasoningEffortLevels: [],
+        supportsFastMode: false,
+        supportsThinkingToggle: false,
+        promptInjectedEffortLevels: [],
+        contextWindowOptions: [],
+      },
+    },
+  ],
+  lmstudio: [
+    {
+      slug: "lmstudio/qwen2.5-coder-7b",
+      name: "LM Studio Qwen 2.5 Coder 7B",
+      capabilities: {
+        reasoningEffortLevels: [],
+        supportsFastMode: false,
+        supportsThinkingToggle: false,
+        promptInjectedEffortLevels: [],
+        contextWindowOptions: [],
+      },
+    },
+  ],
   kilo: [
     {
       slug: "kilo/kilo-auto/free",
@@ -553,6 +614,8 @@ export const DEFAULT_MODEL_BY_PROVIDER: Record<ProviderWithDefaultModel, ModelSl
   grok: "grok-build",
   kilo: "kilo/kilo-auto/free",
   opencode: "openai/gpt-5",
+  ollama: "ollama/qwen2.5-coder:7b",
+  lmstudio: "lmstudio/qwen2.5-coder-7b",
 };
 
 // Backward compatibility for existing Codex-only call sites.
@@ -635,6 +698,8 @@ export const MODEL_SLUG_ALIASES_BY_PROVIDER: Record<ProviderKind, Record<string,
   kilo: {},
   opencode: {},
   pi: {},
+  ollama: {},
+  lmstudio: {},
 };
 
 // ── Agent mention aliases ─────────────────────────────────────────────
@@ -670,4 +735,6 @@ export const PROVIDER_DISPLAY_NAMES: Record<ProviderKind, string> = {
   kilo: "Kilo",
   opencode: "OpenCode",
   pi: "Pi",
+  ollama: "Ollama",
+  lmstudio: "LM Studio",
 };

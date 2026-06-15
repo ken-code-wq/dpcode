@@ -16,6 +16,8 @@ const ProviderDiscoveryKind = Schema.Literals([
   "kilo",
   "opencode",
   "pi",
+  "ollama",
+  "lmstudio",
 ]);
 
 export const ProviderSkillInterface = Schema.Struct({

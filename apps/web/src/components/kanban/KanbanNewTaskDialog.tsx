@@ -20,6 +20,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   getProviderStartOptions,
   resolveAssistantDeliveryMode,
+  resolveMaxBufferedAssistantChars,
   useAppSettings,
 } from "~/appSettings";
 import { RuntimeUsageControls } from "~/components/BranchToolbar";
@@ -103,6 +104,7 @@ export function KanbanNewTaskDialog({
   const { settings } = useAppSettings();
   const { resolvedTheme } = useTheme();
   const assistantDeliveryMode = resolveAssistantDeliveryMode(settings);
+  const maxBufferedAssistantChars = resolveMaxBufferedAssistantChars(settings);
   const providerOptionsForDispatch = useMemo(() => getProviderStartOptions(settings), [settings]);
   const projects = useStore((state) => state.projects);
   const serverConfigQuery = useQuery(serverConfigQueryOptions());
@@ -213,6 +215,7 @@ export function KanbanNewTaskDialog({
     sendAsDraft,
     defaultProvider: settings.defaultProvider,
     assistantDeliveryMode,
+    maxBufferedAssistantChars,
     providerOptionsForDispatch,
     providerStatuses,
     onOpenChange,

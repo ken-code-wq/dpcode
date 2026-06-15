@@ -310,6 +310,8 @@ describe("wsNativeApi", () => {
             customModels: [],
           },
           pi: { enabled: true, binaryPath: "pi", agentDir: "", customModels: [] },
+          ollama: { enabled: true, binaryPath: "ollama", serverUrl: "", customModels: [] },
+          lmstudio: { enabled: true, binaryPath: "lmstudio", serverUrl: "", customModels: [] },
         },
         skills: { disabled: [] },
       },

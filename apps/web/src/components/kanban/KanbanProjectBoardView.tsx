@@ -21,6 +21,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import {
   getProviderStartOptions,
   resolveAssistantDeliveryMode,
+  resolveMaxBufferedAssistantChars,
   useAppSettings,
 } from "~/appSettings";
 import { toastManager } from "~/components/ui/toast";
@@ -61,6 +62,7 @@ export function KanbanProjectBoardView({
 }) {
   const { settings } = useAppSettings();
   const assistantDeliveryMode = resolveAssistantDeliveryMode(settings);
+  const maxBufferedAssistantChars = resolveMaxBufferedAssistantChars(settings);
   const providerOptionsForDispatch = useMemo(() => getProviderStartOptions(settings), [settings]);
   const providerStatuses = useProviderStatusesForLocalConfig();
   const setDraftOrder = useKanbanUiStore((state) => state.setDraftOrder);
@@ -112,6 +114,7 @@ export function KanbanProjectBoardView({
         card,
         defaultProvider: settings.defaultProvider,
         assistantDeliveryMode,
+        maxBufferedAssistantChars,
         providerOptions: providerOptionsForDispatch,
       });
       if (result.kind === "dispatched") {
@@ -153,6 +156,7 @@ export function KanbanProjectBoardView({
     },
     [
       assistantDeliveryMode,
+      maxBufferedAssistantChars,
       onOpenCard,
       providerOptionsForDispatch,
       providerStatuses,

@@ -216,10 +216,7 @@ function AgentActivityEventRow(props: {
         >
           {title}
         </p>
-        <p
-          className="shrink-0 tabular-nums text-muted-foreground/38"
-          style={props.footerTextStyle}
-        >
+        <p className="shrink-0 tabular-nums text-muted-foreground/38" style={props.footerTextStyle}>
           {formatShortTimestamp(props.entry.createdAt, props.timestampFormat)}
         </p>
       </div>

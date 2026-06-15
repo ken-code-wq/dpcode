@@ -1527,6 +1527,9 @@ const make = Effect.gen(function* () {
         ...(nextQueuedTurn.assistantDeliveryMode !== undefined
           ? { assistantDeliveryMode: nextQueuedTurn.assistantDeliveryMode }
           : {}),
+        ...(nextQueuedTurn.maxBufferedAssistantChars !== undefined
+          ? { maxBufferedAssistantChars: nextQueuedTurn.maxBufferedAssistantChars }
+          : {}),
         dispatchMode: nextQueuedTurn.dispatchMode,
         runtimeMode: nextQueuedTurn.runtimeMode,
         interactionMode: nextQueuedTurn.interactionMode,
@@ -1829,6 +1832,9 @@ const make = Effect.gen(function* () {
         : {}),
       ...(payload.assistantDeliveryMode !== undefined
         ? { assistantDeliveryMode: payload.assistantDeliveryMode }
+        : {}),
+      ...(payload.maxBufferedAssistantChars !== undefined
+        ? { maxBufferedAssistantChars: payload.maxBufferedAssistantChars }
         : {}),
       dispatchMode: "queue",
       runtimeMode: payload.runtimeMode,

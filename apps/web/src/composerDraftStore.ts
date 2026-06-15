@@ -901,6 +901,22 @@ function makeModelSelection(
           ? { options: options as Extract<ModelSelection, { provider: "pi" }>["options"] }
           : {}),
       };
+    case "ollama":
+      return {
+        provider,
+        model,
+        ...(options
+          ? { options: options as Extract<ModelSelection, { provider: "ollama" }>["options"] }
+          : {}),
+      };
+    case "lmstudio":
+      return {
+        provider,
+        model,
+        ...(options
+          ? { options: options as Extract<ModelSelection, { provider: "lmstudio" }>["options"] }
+          : {}),
+      };
   }
 }
 

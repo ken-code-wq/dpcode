@@ -113,6 +113,20 @@ export function useProviderModelCatalog(input: {
       enabled: selectedProvider === "pi" || discoveryEnabled,
     }),
   );
+  const ollamaDynamicModelsQuery = useQuery(
+    providerModelsQueryOptions({
+      provider: "ollama",
+      binaryPath: settings.ollamaBinaryPath || null,
+      enabled: selectedProvider === "ollama" || discoveryEnabled,
+    }),
+  );
+  const lmStudioDynamicModelsQuery = useQuery(
+    providerModelsQueryOptions({
+      provider: "lmstudio",
+      binaryPath: settings.lmStudioBinaryPath || null,
+      enabled: selectedProvider === "lmstudio" || discoveryEnabled,
+    }),
+  );
 
   // Agent/mode discovery (kilo/opencode "Mode"/"Agent" picker, claude/codex subagents).
   const claudeDynamicAgentsQuery = useQuery(
@@ -198,6 +212,16 @@ export function useProviderModelCatalog(input: {
         modelHintByProvider?.opencode,
       ),
       pi: getAppModelOptions("pi", customModelsByProvider.pi, modelHintByProvider?.pi),
+      ollama: getAppModelOptions(
+        "ollama",
+        customModelsByProvider.ollama,
+        modelHintByProvider?.ollama,
+      ),
+      lmstudio: getAppModelOptions(
+        "lmstudio",
+        customModelsByProvider.lmstudio,
+        modelHintByProvider?.lmstudio,
+      ),
     };
     const result: Record<
       ProviderKind,
@@ -216,6 +240,8 @@ export function useProviderModelCatalog(input: {
       kilo: kiloDynamicModelsQuery.data,
       opencode: openCodeDynamicModelsQuery.data,
       pi: piDynamicModelsQuery.data,
+      ollama: ollamaDynamicModelsQuery.data,
+      lmstudio: lmStudioDynamicModelsQuery.data,
     };
 
     for (const provider of [
@@ -227,6 +253,8 @@ export function useProviderModelCatalog(input: {
       "kilo",
       "opencode",
       "pi",
+      "ollama",
+      "lmstudio",
     ] as const) {
       const dynamicModels = dynamicSources[provider]?.models;
       if (dynamicModels && dynamicModels.length > 0) {
@@ -251,6 +279,8 @@ export function useProviderModelCatalog(input: {
     modelHintByProvider,
     openCodeDynamicModelsQuery.data,
     piDynamicModelsQuery.data,
+    ollamaDynamicModelsQuery.data,
+    lmStudioDynamicModelsQuery.data,
   ]);
 
   const loadingModelProviders = useMemo<Partial<Record<ProviderKind, boolean>>>(
@@ -274,6 +304,8 @@ export function useProviderModelCatalog(input: {
       kilo: kiloDynamicModelsQuery.data?.models ?? [],
       opencode: openCodeDynamicModelsQuery.data?.models ?? [],
       pi: piDynamicModelsQuery.data?.models ?? [],
+      ollama: ollamaDynamicModelsQuery.data?.models ?? [],
+      lmstudio: lmStudioDynamicModelsQuery.data?.models ?? [],
     }),
     [
       claudeDynamicModelsQuery.data?.models,
@@ -284,6 +316,8 @@ export function useProviderModelCatalog(input: {
       kiloDynamicModelsQuery.data?.models,
       openCodeDynamicModelsQuery.data?.models,
       piDynamicModelsQuery.data?.models,
+      ollamaDynamicModelsQuery.data?.models,
+      lmStudioDynamicModelsQuery.data?.models,
     ],
   );
 

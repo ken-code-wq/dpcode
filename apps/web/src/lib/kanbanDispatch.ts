@@ -63,6 +63,7 @@ export async function dispatchKanbanDraftCard(input: {
   card: KanbanCard;
   defaultProvider: ProviderKind;
   assistantDeliveryMode: AssistantDeliveryMode;
+  maxBufferedAssistantChars: number;
   providerOptions?: ProviderStartOptions | undefined;
 }): Promise<KanbanDraftDispatchResult> {
   const { card } = input;
@@ -78,6 +79,7 @@ export async function dispatchKanbanDraftCard(input: {
     thread: card.thread,
     defaultProvider: input.defaultProvider,
     assistantDeliveryMode: input.assistantDeliveryMode,
+    maxBufferedAssistantChars: input.maxBufferedAssistantChars,
     providerOptions: input.providerOptions,
   });
 }
@@ -89,6 +91,7 @@ interface KanbanDraftDispatchInput {
   thread: SidebarThreadSummary | null;
   defaultProvider: ProviderKind;
   assistantDeliveryMode: AssistantDeliveryMode;
+  maxBufferedAssistantChars?: number | undefined;
   providerOptions?: ProviderStartOptions | undefined;
 }
 
@@ -294,6 +297,9 @@ async function dispatchKanbanDraftThreadOnce(
       modelSelection,
       ...(input.providerOptions ? { providerOptions: input.providerOptions } : {}),
       assistantDeliveryMode: input.assistantDeliveryMode,
+      ...(input.maxBufferedAssistantChars !== undefined
+        ? { maxBufferedAssistantChars: input.maxBufferedAssistantChars }
+        : {}),
       dispatchMode: "queue",
       runtimeMode,
       interactionMode,

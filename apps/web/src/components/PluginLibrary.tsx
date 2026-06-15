@@ -401,6 +401,8 @@ export function PluginLibrary() {
   const kiloCapabilitiesQuery = useQuery(providerComposerCapabilitiesQueryOptions("kilo"));
   const openCodeCapabilitiesQuery = useQuery(providerComposerCapabilitiesQueryOptions("opencode"));
   const piCapabilitiesQuery = useQuery(providerComposerCapabilitiesQueryOptions("pi"));
+  const ollamaCapabilitiesQuery = useQuery(providerComposerCapabilitiesQueryOptions("ollama"));
+  const lmStudioCapabilitiesQuery = useQuery(providerComposerCapabilitiesQueryOptions("lmstudio"));
 
   const providerCapabilities = useMemo<Record<ProviderKind, ProviderCapabilities>>(
     () => ({
@@ -436,6 +438,14 @@ export function PluginLibrary() {
         plugins: supportsPluginDiscovery(piCapabilitiesQuery.data),
         skills: supportsSkillDiscovery(piCapabilitiesQuery.data),
       },
+      ollama: {
+        plugins: supportsPluginDiscovery(ollamaCapabilitiesQuery.data),
+        skills: supportsSkillDiscovery(ollamaCapabilitiesQuery.data),
+      },
+      lmstudio: {
+        plugins: supportsPluginDiscovery(lmStudioCapabilitiesQuery.data),
+        skills: supportsSkillDiscovery(lmStudioCapabilitiesQuery.data),
+      },
     }),
     [
       claudeCapabilitiesQuery.data,
@@ -446,6 +456,8 @@ export function PluginLibrary() {
       kiloCapabilitiesQuery.data,
       openCodeCapabilitiesQuery.data,
       piCapabilitiesQuery.data,
+      ollamaCapabilitiesQuery.data,
+      lmStudioCapabilitiesQuery.data,
     ],
   );
 

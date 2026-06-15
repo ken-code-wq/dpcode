@@ -39,6 +39,7 @@ interface UseKanbanTaskSubmitInput {
   readonly sendAsDraft: boolean;
   readonly defaultProvider: ProviderKind;
   readonly assistantDeliveryMode: AssistantDeliveryMode;
+  readonly maxBufferedAssistantChars: number;
   readonly providerOptionsForDispatch: ProviderStartOptions | undefined;
   readonly providerStatuses: readonly ServerProviderStatus[];
   readonly onOpenChange: (open: boolean) => void;
@@ -59,6 +60,7 @@ export function useKanbanTaskSubmit(input: UseKanbanTaskSubmitInput) {
     sendAsDraft,
     defaultProvider,
     assistantDeliveryMode,
+    maxBufferedAssistantChars,
     providerOptionsForDispatch,
     providerStatuses,
     onOpenChange,
@@ -131,6 +133,7 @@ export function useKanbanTaskSubmit(input: UseKanbanTaskSubmitInput) {
       ...taskInput,
       defaultProvider,
       assistantDeliveryMode,
+      maxBufferedAssistantChars,
       providerOptions: providerOptionsForDispatch,
     })
       .then(({ threadId, result }) => {
@@ -180,6 +183,7 @@ export function useKanbanTaskSubmit(input: UseKanbanTaskSubmitInput) {
       });
   }, [
     assistantDeliveryMode,
+    maxBufferedAssistantChars,
     defaultProvider,
     envMode,
     hasSendableContent,

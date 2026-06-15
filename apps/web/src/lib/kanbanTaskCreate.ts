@@ -65,6 +65,7 @@ export async function createAndSendKanbanTask(
   input: KanbanDraftTaskInput & {
     defaultProvider: ProviderKind;
     assistantDeliveryMode: AssistantDeliveryMode;
+    maxBufferedAssistantChars: number;
     providerOptions?: ProviderStartOptions | undefined;
   },
 ): Promise<{ threadId: ThreadId; result: KanbanDraftDispatchResult }> {
@@ -75,6 +76,7 @@ export async function createAndSendKanbanTask(
     thread: null,
     defaultProvider: input.defaultProvider,
     assistantDeliveryMode: input.assistantDeliveryMode,
+    maxBufferedAssistantChars: input.maxBufferedAssistantChars,
     providerOptions: input.providerOptions,
   });
   return { threadId, result };
