@@ -1,4 +1,4 @@
-import { ThreadId, type ModelSlug } from "@t3tools/contracts";
+import { ThreadId, TurnId, type ModelSlug } from "@t3tools/contracts";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -12,6 +12,7 @@ import {
   hasServerAcknowledgedLocalDispatch,
   isVoiceAuthExpiredMessage,
   resolveActiveThreadTitle,
+  resolveActiveTurnLiveDiffState,
   resolveCommittedProviderModel,
   resolveDefaultEnvironmentPanelOpen,
   resolveEnvironmentPanelVisible,
@@ -268,6 +269,118 @@ describe("environment panel visibility", () => {
   });
 });
 
+describe("resolveActiveTurnLiveDiffState", () => {
+  it("uses only the diff summary for the active turn", () => {
+    const activeTurnId = TurnId.makeUnsafe("turn-active");
+
+    expect(
+      resolveActiveTurnLiveDiffState({
+        latestTurnId: activeTurnId,
+        turnDiffSummaries: [
+          {
+            turnId: TurnId.makeUnsafe("turn-previous"),
+            completedAt: "2026-06-13T10:00:00.000Z",
+            files: [{ path: "old.ts", additions: 100, deletions: 50 }],
+          },
+          {
+            turnId: activeTurnId,
+            completedAt: "2026-06-13T10:01:00.000Z",
+            files: [
+              { path: "src/a.ts", additions: 2, deletions: 1 },
+              { path: "src/b.ts", additions: 3, deletions: 0 },
+            ],
+          },
+        ],
+      }),
+    ).toEqual({
+      turnId: activeTurnId,
+      fileCount: 2,
+      additions: 5,
+      deletions: 1,
+      hasChanges: true,
+    });
+  });
+
+  it("returns zero totals before the active turn has a diff summary", () => {
+    expect(
+      resolveActiveTurnLiveDiffState({
+        latestTurnId: TurnId.makeUnsafe("turn-active"),
+        turnDiffSummaries: [
+          {
+            turnId: TurnId.makeUnsafe("turn-previous"),
+            completedAt: "2026-06-13T10:00:00.000Z",
+            files: [{ path: "old.ts", additions: 100, deletions: 50 }],
+          },
+        ],
+      }),
+    ).toEqual({
+      turnId: null,
+      fileCount: 0,
+      additions: 0,
+      deletions: 0,
+      hasChanges: false,
+    });
+  });
+
+  it("falls back to active-turn file edit work while diff summary files are not ready", () => {
+    const activeTurnId = TurnId.makeUnsafe("turn-active");
+
+    expect(
+      resolveActiveTurnLiveDiffState({
+        latestTurnId: activeTurnId,
+        turnDiffSummaries: [
+          {
+            turnId: TurnId.makeUnsafe("turn-previous"),
+            completedAt: "2026-06-13T10:00:00.000Z",
+            files: [{ path: "old.ts", additions: 100, deletions: 50 }],
+          },
+        ],
+        workLogEntries: [
+          {
+            turnId: TurnId.makeUnsafe("turn-previous"),
+            itemType: "file_change",
+            changedFiles: ["old.ts"],
+          },
+          {
+            turnId: activeTurnId,
+            itemType: "file_change",
+            changedFiles: ["src/a.ts", "src/b.ts", "src/a.ts"],
+          },
+        ],
+      }),
+    ).toEqual({
+      turnId: activeTurnId,
+      fileCount: 2,
+      additions: 0,
+      deletions: 0,
+      hasChanges: true,
+    });
+  });
+
+  it("keeps the active-turn strip visible for file edit work without known paths", () => {
+    const activeTurnId = TurnId.makeUnsafe("turn-active");
+
+    expect(
+      resolveActiveTurnLiveDiffState({
+        latestTurnId: activeTurnId,
+        turnDiffSummaries: [],
+        workLogEntries: [
+          {
+            turnId: activeTurnId,
+            itemType: "file_change",
+          },
+        ],
+      }),
+    ).toEqual({
+      turnId: activeTurnId,
+      fileCount: null,
+      additions: 0,
+      deletions: 0,
+      hasChanges: true,
+    });
+  });
+});
+
 describe("shouldShowComposerModelBootstrapSkeleton", () => {
   it("shows a skeleton while a provider requires runtime-discovered models", () => {
     expect(
@@ -412,6 +525,7 @@ describe("deriveComposerSendState", () => {
       prompt: "\uFFFC",
       imageCount: 0,
       assistantSelectionCount: 0,
+      fileCommentCount: 0,
       terminalContexts: [
         {
           id: "ctx-expired",
@@ -437,6 +551,7 @@ describe("deriveComposerSendState", () => {
       prompt: `yoo \uFFFC waddup`,
       imageCount: 0,
       assistantSelectionCount: 0,
+      fileCommentCount: 0,
       terminalContexts: [
         {
           id: "ctx-expired",
@@ -461,6 +576,19 @@ describe("deriveComposerSendState", () => {
       prompt: "",
       imageCount: 0,
       assistantSelectionCount: 1,
+      fileCommentCount: 0,
+      terminalContexts: [],
+    });
+
+    expect(state.hasSendableContent).toBe(true);
+  });
+
+  it("treats file comments as sendable content", () => {
+    const state = deriveComposerSendState({
+      prompt: "",
+      imageCount: 0,
+      assistantSelectionCount: 0,
+      fileCommentCount: 1,
       terminalContexts: [],
     });
 

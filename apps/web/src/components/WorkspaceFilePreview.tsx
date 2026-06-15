@@ -31,7 +31,9 @@ import { basenameOfPath } from "~/file-icons";
 import { useTheme } from "~/hooks/useTheme";
 import { getSelectionWithin, type ChatFileReference } from "~/lib/chatReferences";
 import { resolveDiffThemeName, type DiffThemeName } from "~/lib/diffRendering";
+import { formatFileCommentRange, type FileCommentSelection } from "~/lib/fileComments";
 import { showFileReferenceContextMenu } from "~/lib/fileReferenceContextMenu";
+import { PlusIcon } from "~/lib/icons";
 import { toggleMarkdownTaskMarker } from "~/lib/markdownTaskList";
 import { projectReadFileQueryOptions } from "~/lib/projectReactQuery";
 import {
@@ -47,7 +49,9 @@ import { cn } from "~/lib/utils";
 import { PencilIcon } from "~/lib/icons";
 import { readNativeApi } from "~/nativeApi";
 import ChatMarkdown from "./ChatMarkdown";
+import { FileLineCommentBox } from "./chat/FileLineCommentBox";
 import { PanelStateMessage } from "./chat/PanelStateMessage";
+import { useFileLineCommenting } from "./chat/useFileLineCommenting";
 import { WorkspaceFilePreviewHeader } from "./chat/WorkspaceFilePreviewHeader";
 import { TranscriptSelectionAction } from "./chat/TranscriptSelectionAction";
 import { useCodeSelectionAction } from "./chat/useCodeSelectionAction";
@@ -303,6 +307,7 @@ export interface WorkspaceFilePreviewProps {
   emptyState?: ReactNode;
   onReferenceInChat?: ((reference: ChatFileReference) => void) | undefined;
   onAskWhyInChat?: ((reference: ChatFileReference) => void) | undefined;
+  onCommentInChat?: ((comment: FileCommentSelection) => void) | undefined;
 }
 
 export function WorkspaceFilePreview(props: WorkspaceFilePreviewProps) {
@@ -311,7 +316,7 @@ export function WorkspaceFilePreview(props: WorkspaceFilePreviewProps) {
   const contentsRef = useRef<HTMLDivElement>(null);
   const taskWriteQueueRef = useRef<Promise<void>>(Promise.resolve());
   const latestTaskWriteVersionRef = useRef({ next: 0, byFile: new Map<string, number>() });
-  const { filePath, onAskWhyInChat, onReferenceInChat, workspaceRoot } = props;
+  const { filePath, onAskWhyInChat, onCommentInChat, onReferenceInChat, workspaceRoot } = props;
   const queryClient = useQueryClient();
   const markdownPreviewDefault = props.markdownPreviewDefault ?? false;
   const fileIsImage = filePath !== null && isSupportedLocalImagePath(filePath);
@@ -370,6 +375,23 @@ export function WorkspaceFilePreview(props: WorkspaceFilePreviewProps) {
     readSelection: readPreviewSelection,
     onCommit: commitPreviewSelection,
   });
+  // Hover "+" gutter affordance + inline "Local comment" box. Offered only in
+  // the source view, where the DOM mirrors the file's lines 1:1 so the hovered
+  // `.line` resolves to an exact line number (the rendered-markdown view
+  // restructures the source and cannot map a row back to a file line).
+  const lineCommentingEnabled = Boolean(onCommentInChat && filePath) && !showMarkdownPreview;
+  const lineCommenting = useFileLineCommenting({
+    enabled: lineCommentingEnabled,
+    resetKey: filePath,
+  });
+  const commitLineComment = useCallback(
+    (selection: Pick<FileCommentSelection, "startLine" | "endLine" | "text">) => {
+      if (filePath) {
+        onCommentInChat?.({ path: filePath, ...selection });
+      }
+    },
+    [filePath, onCommentInChat],
+  );
   // Right-click references the selected line range in the source view,
   // otherwise the whole file. The rendered-markdown view yields no selection
   // (readPreviewSelection returns null there), so it always falls back to the
@@ -416,6 +438,11 @@ export function WorkspaceFilePreview(props: WorkspaceFilePreviewProps) {
         return;
       }
       queryClient.setQueryData(options.queryKey, { ...current, contents: nextContents });
+      // The read RPC may have resolved a bare/partial reference (e.g. a clicked
+      // `notes.md`) to its real nested path. Write back to that resolved path,
+      // not the opened reference, so the toggle lands on the file we read from
+      // instead of creating a stray file at the workspace root.
+      const writeRelativePath = current.relativePath;
       // Writes carry the full file contents, so serialize them: a slower earlier
       // checkbox write must never land after a newer toggle and erase it.
       const fileKey = `${workspaceRoot}\0${filePath}`;
@@ -427,7 +454,7 @@ export function WorkspaceFilePreview(props: WorkspaceFilePreviewProps) {
         .then(() =>
           api.projects.writeFile({
             cwd: workspaceRoot,
-            relativePath: filePath,
+            relativePath: writeRelativePath,
             contents: nextContents,
           }),
         )
@@ -478,6 +505,9 @@ export function WorkspaceFilePreview(props: WorkspaceFilePreviewProps) {
       <PdfFilePreview filePath={filePath} cwd={props.workspaceRoot} openInTarget={openInTarget} />
     );
   }
+
+  const hoveredCommentLine = lineCommenting.hoveredLine;
+  const activeCommentLine = lineCommenting.activeLine;
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-[var(--color-background-surface)]">
@@ -540,6 +570,8 @@ export function WorkspaceFilePreview(props: WorkspaceFilePreviewProps) {
           )}
           onContextMenu={handleContentsContextMenu}
           onMouseUp={previewSelectionAction.onContainerMouseUp}
+          onMouseMove={lineCommenting.onContainerMouseMove}
+          onMouseLeave={lineCommenting.onContainerMouseLeave}
         >
           {showMarkdownPreview ? (
             <div className="editor-markdown-preview">
@@ -564,6 +596,59 @@ export function WorkspaceFilePreview(props: WorkspaceFilePreviewProps) {
               placement={previewSelectionAction.pendingAction.placement}
               onAddToChat={previewSelectionAction.commit}
             />
+          ) : null}
+          {lineCommentingEnabled && hoveredCommentLine && !activeCommentLine ? (
+            <button
+              type="button"
+              className="editor-file-viewer__comment-add"
+              style={{
+                top: hoveredCommentLine.top,
+                left: hoveredCommentLine.left,
+                height: hoveredCommentLine.height,
+              }}
+              aria-label={`Comment on line ${hoveredCommentLine.lineNumber}`}
+              title="Comment"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                lineCommenting.openComment(hoveredCommentLine);
+              }}
+            >
+              <span className="editor-file-viewer__comment-add-glyph">
+                <PlusIcon className="size-3.5" />
+              </span>
+            </button>
+          ) : null}
+          {lineCommentingEnabled && activeCommentLine ? (
+            <>
+              <div
+                className="editor-file-viewer__comment-line-highlight"
+                style={{ top: activeCommentLine.top, height: activeCommentLine.height }}
+                aria-hidden="true"
+              />
+              <FileLineCommentBox
+                lineLabel={formatFileCommentRange({
+                  startLine: activeCommentLine.lineNumber,
+                  endLine: activeCommentLine.lineNumber,
+                })}
+                top={activeCommentLine.top + activeCommentLine.height}
+                left={activeCommentLine.left}
+                width={Math.max(
+                  240,
+                  Math.min(440, activeCommentLine.containerWidth - activeCommentLine.left - 16),
+                )}
+                onCancel={lineCommenting.closeComment}
+                onSubmit={(text) => {
+                  commitLineComment({
+                    startLine: activeCommentLine.lineNumber,
+                    endLine: activeCommentLine.lineNumber,
+                    text,
+                  });
+                  lineCommenting.closeComment();
+                }}
+              />
+            </>
           ) : null}
         </div>
       )}

@@ -1,5 +1,75 @@
 # Changelog
 
+## 0.2.2 - 2026-06-14
+
+### Added
+
+- Added richer profile and personalization surfaces, including profile stats, activity heatmap polish, profile editing updates, and settings panel refinements.
+- Added soft-delete thread retention coverage so deleted thread data has clearer cleanup behavior during early WIP usage.
+- Added release-test stability safeguards for child-process ACP fixtures and the server Vitest runner.
+
+### Changed
+
+- Improved live composer edit visibility so per-turn composer changes stay attached to the active turn lifecycle.
+- Refined curated app/profile UI details across the settings, profile dialog, activity heatmap, and chat route.
+- Changed the server test script to run Vitest files serially, avoiding Turbo teardown stalls caused by lingering server Vitest workers after otherwise-passing test runs.
+
+### Fixed
+
+- Fixed flaky `effect-acp` child-process fixture tests by giving slow process-backed assertions an explicit timeout.
+- Fixed full root `bun run test` release validation getting stuck after green server test output by making the server package test runner deterministic under Turbo.
+- Fixed formatting drift in the profile, retention, and chat-route files that had reached `main`.
+
+### Verification
+
+- `bun run fmt:check` initially failed on `apps/server/src/threadRetention.test.ts`, `apps/web/src/components/profile/ActivityHeatmap.tsx`, `apps/web/src/components/profile/EditProfileDialog.tsx`, `apps/web/src/components/settings/ProfileSettingsPanel.tsx`, and `apps/web/src/routes/_chat.tsx`; after formatting those files, `bun run fmt:check` passed.
+- `bun run lint` passed with 148 warnings, 0 errors.
+- `bun run typecheck` passed with the existing TS44 informational JSON messages.
+- `bun run release:smoke` passed and refreshed release install/lockfile state.
+- `bun run build` passed. Vite still warns about large web chunks and plugin timings; desktop build still reports the existing typeless `tsdown.config.ts` module warning.
+- Initial full `bun run test` failed in `packages/effect-acp` on 5000ms child-process fixture timeouts, then repeated with timeouts in `packages/effect-acp/src/client.test.ts` and `packages/effect-acp/src/protocol.test.ts`. Targeted reruns passed after adding explicit fixture timeouts.
+- A subsequent root `bun run test` reached green server test output but did not return because the server Vitest process kept worker forks alive during Turbo teardown. Direct server testing showed the suite exits cleanly with `--maxWorkers=1 --no-file-parallelism`, so the server test script was updated accordingly.
+- Final `bun run test` passed: 10 tasks successful, including `@t3tools/web` 167 files / 1935 tests, `effect-acp` 3 files / 24 tests, and `t3` 129 files passed / 1 skipped with 1241 passed / 6 skipped.
+- `npm run build` in `/Users/emanueledipietro/Developer/dpcode-website` passed and generated `/changelog/v0.2.2`.
+- `npm run lint` in `/Users/emanueledipietro/Developer/dpcode-website` passed.
+
+## 0.2.1 - 2026-06-14
+
+### Added
+
+- Added inline file comments from composer and preview surfaces, including line comment boxes, comment summary chips, draft persistence, reference attachment support, chat timeline rendering, and file-comment parsing helpers.
+- Added startup turn reconciliation for provider restarts so Synara can recover unfinished turns from persisted runtime state instead of leaving stale active work behind.
+- Added an ACP idle watchdog used by ACP-backed providers so quiet turns can complete or fail more predictably when runtime events stop flowing.
+- Added partial workspace reference lookup helpers and tests so shortened file references can resolve to the intended workspace entry.
+
+### Changed
+
+- Scoped live changed-file activity to the active turn by carrying active turn identity through provider runtime ingestion, Codex/Claude adapter events, checkpoint handling, chat selectors, and composer live-change headers.
+- Improved workspace file opening from chat and preview references so missing prefixes or partial paths are handled through shared workspace file-system logic.
+- Refined provider restart recovery across Cursor, Grok, OpenCode, runtime ingestion, command cleanup, and shared thread summaries so session state is less likely to drift after reconnects.
+- Extended comment and reference handling through kanban dispatch, terminal context, composer attachments, editor workspace, dock preview, and compact composer controls.
+
+### Fixed
+
+- Fixed stale live changed-files panels that could show file edits from a previous or inactive turn.
+- Fixed partial file references failing to open when assistant output did not include the full workspace-relative path.
+- Fixed restart and idle-watchdog paths that could leave turns hanging after provider interruption, reconnect, or quiet ACP runtime behavior.
+- Fixed composer/file-preview context loss when attaching line comments to a prompt or preserving them across draft updates.
+
+### Verification
+
+- `bun run fmt:check` passed.
+- `bun run lint` passed with 146 warnings, 0 errors.
+- `bun run typecheck` passed with the existing TS44 informational JSON messages.
+- `bun run release:smoke` passed and refreshed release install/lockfile state.
+- `bun run build` passed. Vite still warns about large web chunks and plugin timings; marketing still reports the `transformWithEsbuild` deprecation warning; desktop build still reports the existing typeless `tsdown.config.ts` module warning.
+- First full `bun run test` before release-note edits did not complete cleanly: visible server integration and checkpoint suites passed, including `integration/orchestrationEngine.integration.test.ts` and `src/orchestration/Layers/CheckpointReactor.test.ts`, but the root Turbo/Vitest run stopped producing output during teardown with two server Vitest worker forks still alive. The stale `bun`/`turbo`/Vitest process group was interrupted, so this run is not counted as a full pass.
+- Final `bun run test` from `apps/web` passed: 165 files passed, 1909 tests passed.
+- Final `bun run test` from `packages/effect-acp` passed: 3 files passed, 24 tests passed.
+- Final direct server rerun `bun run test -- --maxWorkers=1` from `apps/server` passed: 128 files passed, 1 skipped; 1238 tests passed, 6 skipped.
+- `npm run build` in `/Users/emanueledipietro/Developer/dpcode-website` passed and generated `/changelog/v0.2.1`.
+- `npm run lint` in `/Users/emanueledipietro/Developer/dpcode-website` passed.
+
 ## 0.2.0 - 2026-06-13
 
 ### Added
