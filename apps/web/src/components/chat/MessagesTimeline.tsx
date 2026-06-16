@@ -68,6 +68,7 @@ import { MessageActionButton, MESSAGE_ACTION_ICON_CLASS_NAME } from "./MessageAc
 import { MessageCopyButton } from "./MessageCopyButton";
 import { AssistantSelectionsSummaryChip } from "./AssistantSelectionsSummaryChip";
 import { FileCommentsSummaryChip } from "./FileCommentsSummaryChip";
+import { UserMessagePastedTextCard } from "./PastedTextChip";
 import {
   computeStableMessagesTimelineRows,
   deriveMessagesTimelineRows,
@@ -792,6 +793,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
                 }));
           const terminalContexts = displayedUserMessage.contexts;
           const renderedFileComments = displayedUserMessage.fileComments;
+          const renderedPastedTexts = displayedUserMessage.pastedTexts;
           const userMessagePreview = deriveUserMessagePreviewState(
             displayedUserMessage.visibleText,
             {
@@ -815,6 +817,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
           const hasLeadingMedia =
             renderedAssistantSelections.length > 0 ||
             renderedFileComments.length > 0 ||
+            renderedPastedTexts.length > 0 ||
             userImages.length > 0;
           const isTailContentRow = row.id === tailContentRowId;
           return (
@@ -838,6 +841,17 @@ export const MessagesTimeline = memo(function MessagesTimeline({
                 {renderedFileComments.length > 0 && (
                   <div className="mb-1 flex max-w-[240px] flex-wrap justify-end gap-1.5 self-end">
                     <FileCommentsSummaryChip comments={renderedFileComments} />
+                  </div>
+                )}
+                {renderedPastedTexts.length > 0 && (
+                  <div className="mb-1 flex max-w-full flex-col items-end gap-1.5 self-end">
+                    {renderedPastedTexts.map((pasted) => (
+                      <UserMessagePastedTextCard
+                        key={pasted.index}
+                        text={pasted.text}
+                        metrics={{ lineCount: pasted.lineCount, charCount: pasted.charCount }}
+                      />
+                    ))}
                   </div>
                 )}
                 {userImages.length > 0 && (
