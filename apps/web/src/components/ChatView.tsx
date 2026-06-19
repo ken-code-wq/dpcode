@@ -113,6 +113,7 @@ import {
 } from "../lib/browserPromptContext";
 import { deriveComposerSuggestions, type ComposerSuggestion } from "../lib/composerSuggestions";
 import {
+  buildComposerFileAttachmentsFromFiles,
   IMAGE_SIZE_LIMIT_LABEL,
   buildComposerImageAttachmentsFromFiles,
   buildUploadComposerAttachments,
@@ -277,6 +278,7 @@ import { resolveTerminalNewAction } from "../lib/terminalNewAction";
 import { isTerminalFocused } from "../lib/terminalFocus";
 import { compareProvidersByOrder } from "../providerOrdering";
 import {
+  type ComposerFileAttachment,
   type ComposerImageAttachment,
   type ComposerAssistantSelectionAttachment,
   type DraftThreadEnvMode,
@@ -627,6 +629,7 @@ const EMPTY_COMPOSER_PLUGIN_SUGGESTIONS: ComposerPluginSuggestion[] = [];
 function buildQueuedComposerPreviewText(input: {
   trimmedPrompt: string;
   images: ReadonlyArray<ComposerImageAttachment>;
+  files: ReadonlyArray<ComposerFileAttachment>;
   assistantSelections: ReadonlyArray<{ id: string }>;
   terminalContexts: ReadonlyArray<TerminalContextDraft>;
   fileComments: ReadonlyArray<FileCommentDraft>;
@@ -638,6 +641,10 @@ function buildQueuedComposerPreviewText(input: {
   const firstImage = input.images[0];
   if (firstImage) {
     return `Image: ${firstImage.name}`;
+  }
+  const firstFile = input.files[0];
+  if (firstFile) {
+    return `File: ${firstFile.name}`;
   }
   if (input.assistantSelections.length > 0) {
     return formatAssistantSelectionQueuePreview(input.assistantSelections.length);
@@ -795,6 +802,7 @@ export default function ChatView({
   const composerDraft = useComposerThreadDraft(threadId);
   const prompt = composerDraft.prompt;
   const composerImages = composerDraft.images;
+  const composerFiles = composerDraft.files;
   const composerAssistantSelections = composerDraft.assistantSelections;
   const composerFileComments = composerDraft.fileComments;
   const composerTerminalContexts = composerDraft.terminalContexts;
@@ -816,6 +824,7 @@ export default function ChatView({
       deriveComposerSendState({
         prompt,
         imageCount: composerImages.length,
+        fileCount: composerFiles.length,
         assistantSelectionCount: composerAssistantSelections.length,
         fileCommentCount: composerFileComments.length,
         terminalContexts: composerTerminalContexts,
@@ -824,6 +833,7 @@ export default function ChatView({
     [
       composerAssistantSelections.length,
       composerFileComments.length,
+      composerFiles.length,
       composerImages.length,
       composerTerminalContexts,
       composerPastedTexts,
@@ -848,6 +858,8 @@ export default function ChatView({
   const addComposerDraftImage = useComposerDraftStore((store) => store.addImage);
   const addComposerDraftImages = useComposerDraftStore((store) => store.addImages);
   const removeComposerDraftImage = useComposerDraftStore((store) => store.removeImage);
+  const addComposerDraftFiles = useComposerDraftStore((store) => store.addFiles);
+  const removeComposerDraftFile = useComposerDraftStore((store) => store.removeFile);
   const addComposerDraftAssistantSelection = useComposerDraftStore(
     (store) => store.addAssistantSelection,
   );
@@ -1052,6 +1064,7 @@ export default function ChatView({
   const pendingComposerFocusRef = useRef(false);
   const composerFormHeightRef = useRef(0);
   const composerImagesRef = useRef<ComposerImageAttachment[]>([]);
+  const composerFilesRef = useRef<ComposerFileAttachment[]>([]);
   const composerSelectLockRef = useRef(false);
   const composerMenuOpenRef = useRef(false);
   const composerMenuItemsRef = useRef<ComposerCommandItem[]>([]);
@@ -1113,6 +1126,12 @@ export default function ChatView({
       addComposerDraftImages(threadId, images);
     },
     [addComposerDraftImages, threadId],
+  );
+  const addComposerFilesToDraft = useCallback(
+    (files: ComposerFileAttachment[]) => {
+      addComposerDraftFiles(threadId, files);
+    },
+    [addComposerDraftFiles, threadId],
   );
   const addComposerAssistantSelectionToDraft = useCallback(
     (selection: ComposerAssistantSelectionAttachment) =>
@@ -3051,8 +3070,9 @@ export default function ChatView({
       resolveActiveTurnLiveDiffState({
         latestTurnId: activeLatestTurn?.turnId ?? null,
         turnDiffSummaries,
+        workLogEntries: rawWorkLogEntries,
       }),
-    [activeLatestTurn?.turnId, turnDiffSummaries],
+    [activeLatestTurn?.turnId, rawWorkLogEntries, turnDiffSummaries],
   );
   const splitTerminalShortcutLabel = useMemo(
     () =>
@@ -4701,6 +4721,10 @@ export default function ChatView({
   }, [composerImages]);
 
   useEffect(() => {
+    composerFilesRef.current = composerFiles;
+  }, [composerFiles]);
+
+  useEffect(() => {
     composerAssistantSelectionsRef.current = composerAssistantSelections;
   }, [composerAssistantSelections]);
 
@@ -5526,8 +5550,14 @@ export default function ChatView({
 
       const { images: nextImages, error } = buildComposerImageAttachmentsFromFiles({
         files,
-        existingAttachmentCount:
-          composerImagesRef.current.length + composerAssistantSelectionsRef.current.length,
+        existingAttachmentCount: (() => {
+          const currentDraft = useComposerDraftStore.getState().draftsByThreadId[activeThreadId];
+          return (
+            (currentDraft?.images.length ?? 0) +
+            (currentDraft?.files.length ?? 0) +
+            (currentDraft?.assistantSelections.length ?? 0)
+          );
+        })(),
       });
 
       if (nextImages.length === 1 && nextImages[0]) {
@@ -5550,6 +5580,42 @@ export default function ChatView({
     removeComposerImageFromDraft(imageId);
   };
 
+  const addComposerFiles = useCallback(
+    (files: readonly File[]) => {
+      if (!activeThreadId || files.length === 0) return;
+
+      if (pendingUserInputs.length > 0) {
+        toastManager.add({
+          type: "error",
+          title: "Attach files after answering plan questions.",
+        });
+        return;
+      }
+
+      const { files: nextFiles, error } = buildComposerFileAttachmentsFromFiles({
+        files,
+        existingAttachmentCount: (() => {
+          const currentDraft = useComposerDraftStore.getState().draftsByThreadId[activeThreadId];
+          return (
+            (currentDraft?.images.length ?? 0) +
+            (currentDraft?.files.length ?? 0) +
+            (currentDraft?.assistantSelections.length ?? 0)
+          );
+        })(),
+      });
+
+      if (nextFiles.length > 0) {
+        addComposerFilesToDraft(nextFiles);
+      }
+      setThreadError(activeThreadId, error);
+    },
+    [activeThreadId, addComposerFilesToDraft, pendingUserInputs.length, setThreadError],
+  );
+
+  const removeComposerFile = (fileId: string) => {
+    removeComposerDraftFile(threadId, fileId);
+  };
+
   const {
     onComposerPaste,
     onComposerDragEnter,
@@ -5558,6 +5624,7 @@ export default function ChatView({
     onComposerDrop,
   } = useComposerDropzone({
     addImages: addComposerImages,
+    addFiles: addComposerFiles,
     appendReferenceText: (referenceText) => appendComposerPromptText(threadId, referenceText),
     dragDepthRef,
     focusComposer,
@@ -5659,6 +5726,7 @@ export default function ChatView({
       const nextPrompt = queuedTurn.kind === "chat" ? queuedTurn.prompt : queuedTurn.text;
       const restoredImages =
         queuedTurn.kind === "chat" ? queuedTurn.images.map(cloneComposerImageAttachment) : [];
+      const restoredFiles = queuedTurn.kind === "chat" ? queuedTurn.files : [];
       const restoredAssistantSelections =
         queuedTurn.kind === "chat" ? queuedTurn.assistantSelections : [];
       const restoredFileComments = queuedTurn.kind === "chat" ? queuedTurn.fileComments : [];
@@ -5674,6 +5742,9 @@ export default function ChatView({
       if (queuedTurn.kind === "chat") {
         if (restoredImages.length > 0) {
           addComposerImagesToDraft(restoredImages);
+        }
+        if (restoredFiles.length > 0) {
+          addComposerFilesToDraft(restoredFiles);
         }
         for (const selection of restoredAssistantSelections) {
           addComposerAssistantSelectionToDraft(selection);
@@ -5704,6 +5775,7 @@ export default function ChatView({
       activeThread,
       addComposerAssistantSelectionToDraft,
       addComposerFileCommentToDraft,
+      addComposerFilesToDraft,
       addComposerImagesToDraft,
       addComposerTerminalContextsToDraft,
       addComposerPastedTextsToDraft,
@@ -5784,6 +5856,7 @@ export default function ChatView({
     const promptForSend =
       queuedChatTurn?.prompt ?? liveComposerSnapshot?.value ?? promptRef.current;
     let composerImagesForSend = queuedChatTurn?.images ?? composerImages;
+    const composerFilesForSend = queuedChatTurn?.files ?? composerFiles;
     const composerAssistantSelectionsForSend =
       queuedChatTurn?.assistantSelections ?? composerAssistantSelections;
     const composerFileCommentsForSend = queuedChatTurn?.fileComments ?? composerFileComments;
@@ -5813,6 +5886,7 @@ export default function ChatView({
     } = deriveComposerSendState({
       prompt: promptForSend,
       imageCount: composerImagesForSend.length,
+      fileCount: composerFilesForSend.length,
       assistantSelectionCount: composerAssistantSelectionsForSend.length,
       fileCommentCount: composerFileCommentsForSend.length,
       terminalContexts: composerTerminalContextsForSend,
@@ -5852,6 +5926,7 @@ export default function ChatView({
     }
     if (
       composerImagesForSend.length === 0 &&
+      composerFilesForSend.length === 0 &&
       composerAssistantSelectionsForSend.length === 0 &&
       composerFileCommentsForSend.length === 0 &&
       sendableComposerTerminalContexts.length === 0 &&
@@ -5903,6 +5978,7 @@ export default function ChatView({
     if (browserPromptAttachment.image) {
       const nextAttachmentCount =
         composerImagesForSend.length +
+        composerFilesForSend.length +
         composerAssistantSelectionsForSend.length +
         (browserPromptAttachment.image ? 1 : 0);
       if (nextAttachmentCount <= PROVIDER_SEND_TURN_MAX_ATTACHMENTS) {
@@ -5952,6 +6028,7 @@ export default function ChatView({
         previewText: buildQueuedComposerPreviewText({
           trimmedPrompt: trimmed,
           images: queuedImagesForPersistence,
+          files: composerFilesForSend,
           assistantSelections: composerAssistantSelectionsForSend,
           terminalContexts: sendableComposerTerminalContexts,
           fileComments: composerFileCommentsForSend,
@@ -5959,6 +6036,7 @@ export default function ChatView({
         }),
         prompt: promptForSend,
         images: queuedImagesForPersistence,
+        files: composerFilesForSend,
         assistantSelections: composerAssistantSelectionsForSend,
         fileComments: composerFileCommentsForSend,
         terminalContexts: sendableComposerTerminalContexts,
@@ -5989,6 +6067,8 @@ export default function ChatView({
     if (!titleSeed) {
       if (firstComposerImageNameForTitle) {
         titleSeed = `Image: ${firstComposerImageNameForTitle}`;
+      } else if (composerFilesForSend.length > 0) {
+        titleSeed = `File: ${composerFilesForSend[0]?.name ?? "attachment"}`;
       } else if (composerAssistantSelectionsForSend.length > 0) {
         titleSeed = formatAssistantSelectionTitleSeed(composerAssistantSelectionsForSend.length);
       } else if (sendableComposerTerminalContexts.length > 0) {
@@ -6122,6 +6202,7 @@ export default function ChatView({
     beginLocalDispatch({ preparingWorktree: Boolean(baseBranchForWorktree) });
 
     const composerImagesSnapshot = [...composerImagesForSend];
+    const composerFilesSnapshot = [...composerFilesForSend];
     const composerAssistantSelectionsSnapshot = [...composerAssistantSelectionsForSend];
     const composerFileCommentsSnapshot = [...composerFileCommentsForSend];
     const composerTerminalContextsSnapshot = [...sendableComposerTerminalContexts];
@@ -6143,11 +6224,13 @@ export default function ChatView({
     );
     const messageIdForSend = newMessageId();
     const messageCreatedAt = new Date().toISOString();
+    const outgoingTextSeed =
+      messageTextForSend || (composerImagesSnapshot.length > 0 ? IMAGE_ONLY_BOOTSTRAP_PROMPT : "");
     const outgoingMessageText = formatOutgoingComposerPrompt({
       provider: selectedProviderForSend,
       model: selectedModelForSend,
       effort: selectedPromptEffortForSend,
-      text: messageTextForSend || IMAGE_ONLY_BOOTSTRAP_PROMPT,
+      text: outgoingTextSeed,
     });
     const mentionedSkillsForSend = filterPromptSkillReferences(
       outgoingMessageText,
@@ -6160,6 +6243,7 @@ export default function ChatView({
     );
     const turnAttachmentsPromise = buildUploadComposerAttachments({
       images: composerImagesSnapshot,
+      files: composerFilesSnapshot,
       assistantSelections: composerAssistantSelectionsSnapshot,
     });
     const optimisticAttachments = [
@@ -6171,6 +6255,13 @@ export default function ChatView({
         mimeType: image.mimeType,
         sizeBytes: image.sizeBytes,
         previewUrl: image.previewUrl,
+      })),
+      ...composerFilesSnapshot.map((file) => ({
+        type: "file" as const,
+        id: file.id,
+        name: file.name,
+        mimeType: file.mimeType,
+        sizeBytes: file.sizeBytes,
       })),
     ];
     setOptimisticUserMessages((existing) => [
@@ -6396,6 +6487,7 @@ export default function ChatView({
         !turnStartSucceeded &&
         promptRef.current.length === 0 &&
         composerImagesRef.current.length === 0 &&
+        composerFilesRef.current.length === 0 &&
         composerAssistantSelectionsRef.current.length === 0 &&
         composerFileCommentsRef.current.length === 0 &&
         composerTerminalContextsRef.current.length === 0 &&
@@ -6413,6 +6505,7 @@ export default function ChatView({
         setPrompt(promptForSend);
         setComposerCursor(collapseExpandedComposerCursor(promptForSend, promptForSend.length));
         addComposerImagesToDraft(composerImagesSnapshot.map(cloneComposerImageAttachment));
+        addComposerFilesToDraft(composerFilesSnapshot);
         for (const selection of composerAssistantSelectionsSnapshot) {
           addComposerAssistantSelectionToDraft(selection);
         }
@@ -8532,11 +8625,13 @@ export default function ChatView({
                     (composerAssistantSelections.length > 0 ||
                       composerFileComments.length > 0 ||
                       composerPastedTexts.length > 0 ||
+                      composerFiles.length > 0 ||
                       composerImages.length > 0) && (
                       <ComposerReferenceAttachments
                         assistantSelections={composerAssistantSelections}
                         fileComments={composerFileComments}
                         pastedTexts={composerPastedTexts}
+                        files={composerFiles}
                         images={composerImages}
                         nonPersistedImageIdSet={nonPersistedComposerImageIdSet}
                         onExpandImage={setExpandedImage}
@@ -8544,6 +8639,7 @@ export default function ChatView({
                         onRemoveFileComments={clearComposerFileCommentsFromDraft}
                         onRemovePastedText={removeComposerPastedTextFromDraft}
                         onShowPastedTextInField={showComposerPastedTextInField}
+                        onRemoveFile={removeComposerFile}
                         onRemoveImage={removeComposerImage}
                       />
                     )}
