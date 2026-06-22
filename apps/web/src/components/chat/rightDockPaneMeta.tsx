@@ -8,6 +8,7 @@ import type { ReactNode } from "react";
 import type { LucideIcon } from "~/lib/icons";
 import {
   DiffIcon,
+  EyeIcon,
   FileIcon,
   GitCommitIcon,
   GlobeIcon,
@@ -30,6 +31,7 @@ export interface RightDockPaneMeta {
 
 export const RIGHT_DOCK_PANE_META: Record<RightDockPaneKind, RightDockPaneMeta> = {
   browser: { label: "Browser", Icon: GlobeIcon },
+  "live-editor": { label: "Editor", Icon: EyeIcon },
   diff: { label: "Diff", Icon: DiffIcon },
   file: { label: "File", Icon: FileIcon },
   terminal: { label: "Terminal", Icon: TerminalIcon },

@@ -28,6 +28,7 @@ async function mountMenu(props?: {
     prompt: props?.prompt ?? "",
     images: [],
     files: [],
+    browserContexts: [],
     nonPersistedImageIds: [],
     persistedAttachments: [],
     assistantSelections: [],

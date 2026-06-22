@@ -669,6 +669,9 @@ function DeferredChatView(props: {
   onToggleDiff: () => void;
   onToggleBrowser: () => void;
   onOpenBrowserUrl: (url: string) => void;
+  onOpenBrowser: () => void;
+  onOpenLiveEditor?: () => void;
+
   onOpenTurnDiff: (turnId: TurnId, filePath?: string) => void;
   onSplitSurface?: () => void;
   onMaximize?: () => void;
@@ -726,6 +729,7 @@ function DeferredChatView(props: {
       onToggleDiffPanel={props.onToggleDiff}
       onToggleBrowserPanel={props.onToggleBrowser}
       onOpenBrowserUrl={props.onOpenBrowserUrl}
+
       onOpenTurnDiffPanel={props.onOpenTurnDiff}
       {...(props.onSplitSurface ? { onSplitSurface: props.onSplitSurface } : {})}
       {...(props.onMaximize ? { onMaximizeSurface: props.onMaximize } : {})}
@@ -756,6 +760,9 @@ function SplitPaneSurface(props: {
   onToggleDiff: () => void;
   onToggleBrowser: () => void;
   onOpenBrowserUrl: (url: string) => void;
+  onOpenBrowser: () => void;
+  onOpenLiveEditor?: () => void;
+
   onOpenTurnDiff: (turnId: TurnId, filePath?: string) => void;
   onClosePanel: () => void;
   onUpdatePanelState: (
@@ -821,6 +828,9 @@ function SplitPaneSurface(props: {
               onToggleDiff={props.onToggleDiff}
               onToggleBrowser={props.onToggleBrowser}
               onOpenBrowserUrl={props.onOpenBrowserUrl}
+              onOpenBrowser={props.onOpenBrowser}
+              {...(props.onOpenLiveEditor ? { onOpenLiveEditor: props.onOpenLiveEditor } : {})}
+
               onOpenTurnDiff={props.onOpenTurnDiff}
               onMaximize={props.onMaximize}
               onChangeThread={props.onChooseThread}
@@ -1280,6 +1290,8 @@ function SplitChatSurface(props: { splitViewId: SplitViewId; routeThreadId: Thre
         onToggleDiff={() => togglePanePanel(leaf.id, "diff")}
         onToggleBrowser={() => togglePanePanel(leaf.id, "browser")}
         onOpenBrowserUrl={() => updatePanePanelState(leaf.id, { panel: "browser" })}
+        onOpenBrowser={() => updatePanePanelState(leaf.id, { panel: "browser" })}
+
         onOpenTurnDiff={(turnId, filePath) => openPaneTurnDiff(leaf.id, turnId, filePath)}
         onClosePanel={() => closePanePanel(leaf.id)}
         onUpdatePanelState={(patch) => updatePanePanelState(leaf.id, patch)}
@@ -1515,8 +1527,13 @@ function SingleChatSurface(props: {
   const chatPanelState = useMemo<SplitViewPanePanelState>(
     () => ({
       panel:
-        activePane && (activePane.kind === "browser" || activePane.kind === "diff")
-          ? activePane.kind
+        activePane &&
+        (activePane.kind === "browser" ||
+          activePane.kind === "live-editor" ||
+          activePane.kind === "diff")
+          ? activePane.kind === "diff"
+            ? "diff"
+            : "browser"
           : null,
       diffTurnId: activePane?.kind === "diff" ? activePane.diffTurnId : null,
       diffFilePath: activePane?.kind === "diff" ? activePane.diffFilePath : null,
@@ -1538,6 +1555,15 @@ function SingleChatSurface(props: {
     requestImmediateDockHydration("browser");
     openPane(props.threadId, { kind: "browser" });
   }, [openPane, props.threadId, requestImmediateDockHydration]);
+  const handleOpenBrowser = useCallback(() => {
+    requestImmediateDockHydration("browser");
+    openPane(props.threadId, { kind: "browser" });
+  }, [openPane, props.threadId, requestImmediateDockHydration]);
+  const handleOpenLiveEditor = useCallback(() => {
+    requestImmediateDockHydration("live-editor");
+    openPane(props.threadId, { kind: "live-editor" });
+  }, [openPane, props.threadId, requestImmediateDockHydration]);
+
   const handleOpenTurnDiff = useCallback(
     (turnId: TurnId, filePath?: string) => {
       requestImmediateDockHydration("diff");
@@ -2044,6 +2070,17 @@ function SingleChatSurface(props: {
               onRequestLive={requestActiveDockPaneLive}
             />
           );
+        case "live-editor":
+          return (
+            <BrowserPanel
+              mode="sidebar"
+              threadId={props.threadId}
+              onClosePanel={() => closePane(props.threadId, pane.id)}
+              runtimeMode={context.runtimeMode}
+              onRequestLive={requestActiveDockPaneLive}
+              variant="live-editor"
+            />
+          );
         case "diff":
           return (
             <LazyDiffPanel
@@ -2117,6 +2154,9 @@ function SingleChatSurface(props: {
               onToggleDiff={noop}
               onToggleBrowser={noop}
               onOpenBrowserUrl={noop}
+              onOpenBrowser={noop}
+              onOpenLiveEditor={noop}
+
               onOpenTurnDiff={noop}
               onCloseThreadPane={() => closePane(props.threadId, pane.id)}
             />
@@ -2249,21 +2289,38 @@ function SingleChatSurface(props: {
                 className="min-h-0 min-w-0 overflow-hidden overscroll-y-none text-foreground"
                 surfaceClassName={CHAT_BACKGROUND_CLASS_NAME}
               >
-                <DeferredChatView
-                  threadId={props.threadId}
-                  paneScopeId="editor-chat"
-                  deferMount={false}
-                  surfaceMode="split"
-                  presentationMode="editor"
-                  isFocusedPane
-                  panelState={editorChatPanelState}
-                  onToggleDiff={handleEditorToggleDiff}
-                  onToggleBrowser={noop}
-                  onOpenBrowserUrl={noop}
-                  onOpenTurnDiff={handleEditorOpenTurnDiff}
+                  <DeferredChatView
+                    threadId={props.threadId}
+                    paneScopeId="editor-chat"
+                    deferMount={false}
+                    surfaceMode="split"
+                    presentationMode="editor"
+                    isFocusedPane
+                    panelState={editorChatPanelState}
+                    onToggleDiff={handleEditorToggleDiff}
+                    onToggleBrowser={noop}
+                    onOpenBrowserUrl={noop}
+                    onOpenBrowser={noop}
+                    onOpenTurnDiff={handleEditorOpenTurnDiff}
                 />
               </SidebarInset>
             }
+            />
+          <DeferredChatView
+            threadId={props.threadId}
+            paneScopeId="single"
+            deferMount={false}
+            surfaceMode="single"
+            isFocusedPane
+            panelState={chatPanelState}
+            onToggleDiff={handleToggleDiff}
+            onToggleBrowser={handleToggleBrowser}
+            onOpenBrowserUrl={noop}
+            onOpenBrowser={handleOpenBrowser}
+            onOpenLiveEditor={handleOpenLiveEditor}
+            onOpenTurnDiff={handleOpenTurnDiff}
+            onSplitSurface={handleSplitSurface}
+
           />
         </div>
       </WorkspaceFileOpenerContext.Provider>
@@ -2295,6 +2352,7 @@ function SingleChatSurface(props: {
               onToggleDiff={handleToggleDiff}
               onToggleBrowser={handleToggleBrowser}
               onOpenBrowserUrl={handleOpenBrowserUrl}
+              onOpenBrowser={noop}
               onOpenTurnDiff={handleOpenTurnDiff}
               onSplitSurface={handleSplitSurface}
               viewModeAction={{

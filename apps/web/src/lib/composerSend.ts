@@ -89,7 +89,7 @@ export function buildComposerImageAttachmentsFromFiles(input: {
   });
 
   const images = result.files.map((file) => ({
-    type: "image",
+    type: "image" as const,
     id: randomUUID(),
     name: file.name || "image",
     mimeType: file.type,
@@ -115,7 +115,7 @@ export function buildComposerFileAttachmentsFromFiles(input: {
   });
 
   const files = result.files.map((file) => ({
-    type: "file",
+    type: "file" as const,
     id: randomUUID(),
     name: file.name || "attachment",
     mimeType: file.type || "application/octet-stream",

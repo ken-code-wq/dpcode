@@ -46,6 +46,7 @@ import { discoverSkillsCatalog, synaraSkillsDir } from "./provider/skillsCatalog
 import { ProviderAdapterRegistry } from "./provider/Services/ProviderAdapterRegistry";
 import { ProviderHealth } from "./provider/Services/ProviderHealth";
 import { ProviderService } from "./provider/Services/ProviderService";
+import { PreviewRuntimeManager } from "./preview/PreviewRuntimeManager";
 import { listProviderUsage } from "./providerUsage";
 import { getProviderUsageSnapshot } from "./providerUsageSnapshot";
 import { ProfileStatsQuery } from "./profileStats";
@@ -351,6 +352,12 @@ export const makeWsRpcLayer = () =>
       const textGeneration = yield* TextGeneration;
       const workspaceEntries = yield* WorkspaceEntries;
       const workspaceFileSystem = yield* WorkspaceFileSystem;
+      const previewRuntimeManager = new PreviewRuntimeManager(terminalManager, {
+        terminalLogsDir: config.terminalLogsDir,
+      });
+      yield* terminalManager.subscribe((event) => {
+        previewRuntimeManager.handleTerminalEvent(event);
+      });
 
       const canonicalizeProjectWorkspaceRoot = Effect.fnUntraced(function* (
         workspaceRoot: string,
@@ -699,6 +706,10 @@ export const makeWsRpcLayer = () =>
           rpcEffect(workspaceFileSystem.readFile(input), "Failed to read workspace file"),
         [WS_METHODS.projectsWriteFile]: (input) =>
           rpcEffect(workspaceFileSystem.writeFile(input), "Failed to write workspace file"),
+        [WS_METHODS.projectsApplyTextEdit]: (input) =>
+          rpcEffect(workspaceFileSystem.applyTextEdit(input), "Failed to apply text edit"),
+        [WS_METHODS.projectsApplyStyleEdit]: (input) =>
+          rpcEffect(workspaceFileSystem.applyStyleEdit(input), "Failed to apply style edit"),
         [WS_METHODS.projectsRunDevServer]: (input) =>
           rpcEffect(devServerManager.run(input), "Failed to start dev server"),
         [WS_METHODS.projectsStopDevServer]: (input) =>
@@ -888,6 +899,25 @@ export const makeWsRpcLayer = () =>
           Stream.callback((queue) =>
             Effect.gen(function* () {
               const unsubscribe = yield* terminalManager.subscribe((event) => {
+                Effect.runFork(Queue.offer(queue, event).pipe(Effect.asVoid));
+              });
+              yield* Effect.addFinalizer(() => Effect.sync(unsubscribe));
+            }),
+          ),
+        [WS_METHODS.previewGetState]: (input) =>
+          rpcEffect(previewRuntimeManager.getState(input), "Failed to read preview state"),
+        [WS_METHODS.previewStart]: (input) =>
+          rpcEffect(previewRuntimeManager.start(input), "Failed to start preview"),
+        [WS_METHODS.previewStop]: (input) =>
+          rpcEffect(previewRuntimeManager.stop(input), "Failed to stop preview"),
+        [WS_METHODS.previewStopAll]: (input) =>
+          rpcEffect(previewRuntimeManager.stopAll(input), "Failed to stop previews"),
+        [WS_METHODS.previewRestart]: (input) =>
+          rpcEffect(previewRuntimeManager.restart(input), "Failed to restart preview"),
+        [WS_METHODS.subscribePreviewEvents]: () =>
+          Stream.callback((queue) =>
+            Effect.gen(function* () {
+              const unsubscribe = previewRuntimeManager.subscribe((event) => {
                 Effect.runFork(Queue.offer(queue, event).pipe(Effect.asVoid));
               });
               yield* Effect.addFinalizer(() => Effect.sync(unsubscribe));

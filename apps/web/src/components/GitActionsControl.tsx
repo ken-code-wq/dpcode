@@ -171,11 +171,15 @@ function getMenuActionDisabledReason({
   gitStatus,
   isBusy,
   hasOriginRemote,
+  isDefaultBranch,
+  defaultBranchName,
 }: {
   item: GitActionMenuItem;
   gitStatus: GitStatusResult | null;
   isBusy: boolean;
   hasOriginRemote: boolean;
+  isDefaultBranch?: boolean;
+  defaultBranchName?: string | null;
 }): string | null {
   if (!item.disabled) return null;
   if (isBusy) return "Git action in progress.";
@@ -234,6 +238,9 @@ function getMenuActionDisabledReason({
   }
   if (!hasBranch) {
     return "Detached HEAD: checkout a branch before creating a PR.";
+  }
+  if (isDefaultBranch) {
+    return `Cannot create a PR from the default branch (${defaultBranchName ?? gitStatus.branch}). Switch to a feature branch first.`;
   }
   if (hasChanges) {
     return "Commit local changes before creating a PR.";
@@ -1166,6 +1173,8 @@ export default function GitActionsControl({
           gitStatus: gitStatusForActions,
           isBusy: isGitActionRunning,
           hasOriginRemote,
+          isDefaultBranch,
+          defaultBranchName,
         }),
         icon: "pr",
         onSelect: () => openDialogForMenuItem(prMenuItem),

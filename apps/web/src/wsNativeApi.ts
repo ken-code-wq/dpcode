@@ -21,6 +21,7 @@ import {
   type OrchestrationEvent,
   type OrchestrationShellStreamItem,
   type OrchestrationThreadStreamItem,
+  type PreviewRuntimeEvent,
   type ProjectDevServerEvent,
   type ServerProviderStatusesUpdatedPayload,
   type ServerLifecycleStreamEvent,
@@ -69,6 +70,7 @@ function omitNullUserInputAnswers(
   };
 }
 const terminalEventListeners = new Set<(payload: TerminalEvent) => void>();
+const previewEventListeners = new Set<(payload: PreviewRuntimeEvent) => void>();
 const projectDevServerEventListeners = new Set<(payload: ProjectDevServerEvent) => void>();
 const automationEventListeners = new Set<(payload: AutomationStreamEvent) => void>();
 const orchestrationDomainEventListeners = new Set<(payload: OrchestrationEvent) => void>();
@@ -393,6 +395,16 @@ export function createWsNativeApi(): NativeApi {
       }
     }
   });
+  transport.subscribe(WS_CHANNELS.previewEvent, (message) => {
+    const payload = message.data;
+    for (const listener of previewEventListeners) {
+      try {
+        listener(payload);
+      } catch {
+        // Swallow listener errors
+      }
+    }
+  });
   transport.subscribe(WS_CHANNELS.projectDevServerEvent, (message) => {
     const payload = message.data;
     for (const listener of projectDevServerEventListeners) {
@@ -484,6 +496,19 @@ export function createWsNativeApi(): NativeApi {
         };
       },
     },
+    preview: {
+      getState: (input) => transport.request(WS_METHODS.previewGetState, input),
+      start: (input) => transport.request(WS_METHODS.previewStart, input, { timeoutMs: null }),
+      stop: (input) => transport.request(WS_METHODS.previewStop, input),
+      stopAll: (input) => transport.request(WS_METHODS.previewStopAll, input),
+      restart: (input) => transport.request(WS_METHODS.previewRestart, input, { timeoutMs: null }),
+      onState: (callback) => {
+        previewEventListeners.add(callback);
+        return () => {
+          previewEventListeners.delete(callback);
+        };
+      },
+    },
     projects: {
       discoverScripts: (input) => transport.request(WS_METHODS.projectsDiscoverScripts, input),
       listDirectories: (input) => transport.request(WS_METHODS.projectsListDirectories, input),
@@ -493,6 +518,8 @@ export function createWsNativeApi(): NativeApi {
       searchContent: (input) => transport.request(WS_METHODS.projectsSearchContent, input),
       readFile: (input) => transport.request(WS_METHODS.projectsReadFile, input),
       writeFile: (input) => transport.request(WS_METHODS.projectsWriteFile, input),
+      applyTextEdit: (input) => transport.request(WS_METHODS.projectsApplyTextEdit, input),
+      applyStyleEdit: (input) => transport.request(WS_METHODS.projectsApplyStyleEdit, input),
       runDevServer: (input) => transport.request(WS_METHODS.projectsRunDevServer, input),
       stopDevServer: (input) => transport.request(WS_METHODS.projectsStopDevServer, input),
       listDevServers: () => transport.request(WS_METHODS.projectsListDevServers),
@@ -751,6 +778,12 @@ export function createWsNativeApi(): NativeApi {
         }
         return cloneBrowserState(getFallbackBrowserState(input.threadId));
       },
+      listStates: async () => {
+        if (window.desktopBridge) {
+          return window.desktopBridge.browser.listStates();
+        }
+        return Array.from(fallbackBrowserStates.values(), cloneBrowserState);
+      },
       setPanelBounds: async (input) => {
         if (window.desktopBridge) {
           await window.desktopBridge.browser.setPanelBounds(input);
@@ -876,6 +909,11 @@ export function createWsNativeApi(): NativeApi {
           await window.desktopBridge.browser.openDevTools(input);
         }
       },
+      setEditorShortcutsEnabled: async (input) => {
+        if (window.desktopBridge) {
+          await window.desktopBridge.browser.setEditorShortcutsEnabled(input);
+        }
+      },
       onState: (callback) => {
         if (window.desktopBridge) {
           return window.desktopBridge.browser.onState(callback);
@@ -891,8 +929,15 @@ export function createWsNativeApi(): NativeApi {
         }
         return () => {};
       },
-    },
-  };
+      onEditorShortcut: (callback) => {
+        if (window.desktopBridge) {
+          return window.desktopBridge.browser.onEditorShortcut(callback);
+        }
+        void callback;
+        return () => undefined;
+      },
+      },
+    };
 
   instance = { api, transport };
   return api;

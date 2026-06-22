@@ -6037,6 +6037,7 @@ export default function ChatView({
         prompt: promptForSend,
         images: queuedImagesForPersistence,
         files: composerFilesForSend,
+        browserContexts: [],
         assistantSelections: composerAssistantSelectionsForSend,
         fileComments: composerFileCommentsForSend,
         terminalContexts: sendableComposerTerminalContexts,
@@ -7850,6 +7851,7 @@ export default function ChatView({
       await handleNewThread(activeProject.id, { entryPoint: "chat" });
     },
     handleInteractionModeChange,
+    handleAppSkill: async () => {},
     openForkTargetPicker: () => {
       setComposerCommandPicker("fork-target");
       setComposerHighlightedItemId("fork-target:worktree");
@@ -8632,13 +8634,16 @@ export default function ChatView({
                         fileComments={composerFileComments}
                         pastedTexts={composerPastedTexts}
                         files={composerFiles}
+                        browserContexts={[]}
                         images={composerImages}
                         nonPersistedImageIdSet={nonPersistedComposerImageIdSet}
                         onExpandImage={setExpandedImage}
+                        onExpandBrowserContext={() => {}}
                         onRemoveAssistantSelections={clearComposerAssistantSelectionsFromDraft}
                         onRemoveFileComments={clearComposerFileCommentsFromDraft}
                         onRemovePastedText={removeComposerPastedTextFromDraft}
                         onShowPastedTextInField={showComposerPastedTextInField}
+                        onRemoveBrowserContext={() => {}}
                         onRemoveFile={removeComposerFile}
                         onRemoveImage={removeComposerImage}
                       />
@@ -9025,6 +9030,8 @@ export default function ChatView({
           hideSidebarControls={isEditorRail}
           hideHandoffControls={terminalWorkspaceTerminalTabActive || isEditorRail}
           isGitRepo={isGitRepo}
+          browserOpen={browserOpen}
+          browserToggleShortcutLabel={null}
           openInTarget={threadWorkspaceCwd}
           activeProjectScripts={isEditorRail ? undefined : activeProjectScripts}
           preferredScriptId={
@@ -9092,6 +9099,7 @@ export default function ChatView({
           onUpdateProjectScript={updateProjectScript}
           onDeleteProjectScript={deleteProjectScript}
           onToggleDiff={onToggleDiff}
+          onToggleBrowser={onToggleBrowser}
           onCreateHandoff={onCreateHandoffThread}
           onNavigateToThread={onNavigateToThread}
           onRenameThread={() => setRenameDialogOpen(true)}

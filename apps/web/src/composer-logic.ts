@@ -24,6 +24,7 @@ type ComposerSegmentLike =
   | { type: "mention" }
   | { type: "skill" }
   | { type: "terminal-context" }
+  | { type: "browser-context" }
   | { type: "agent-mention"; alias: string }
   | { type: "link"; url: string };
 
@@ -118,7 +119,7 @@ export function expandCollapsedComposerCursor(text: string, cursorInput: number)
       expandedCursor += expandedLength;
       continue;
     }
-    if (segment.type === "terminal-context") {
+    if (segment.type === "terminal-context" || segment.type === "browser-context") {
       if (remaining <= 1) {
         return expandedCursor + remaining;
       }
@@ -226,7 +227,7 @@ export function collapseExpandedComposerCursor(text: string, cursorInput: number
       collapsedCursor += 1;
       continue;
     }
-    if (segment.type === "terminal-context") {
+    if (segment.type === "terminal-context" || segment.type === "browser-context") {
       if (remaining <= 1) {
         return collapsedCursor + remaining;
       }

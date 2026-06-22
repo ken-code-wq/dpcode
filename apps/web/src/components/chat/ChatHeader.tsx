@@ -22,6 +22,7 @@ import GitActionsControl from "../GitActionsControl";
 import {
   ArrowRightIcon,
   CheckIcon,
+  GlobeIcon,
   HandoffIcon,
   HistoryIcon,
   MessageCircleIcon,
@@ -103,7 +104,9 @@ interface ChatHeaderProps {
   showGitActions?: boolean;
   showDiffToggle?: boolean;
   diffOpen: boolean;
+  browserOpen: boolean;
   diffDisabledReason?: string | null;
+  browserToggleShortcutLabel: string | null;
   surfaceMode?: "single" | "split";
   isSidechat?: boolean;
   // When provided (and the thread is not disposable), the header collapses the
@@ -138,6 +141,7 @@ interface ChatHeaderProps {
   onUpdateProjectScript: (scriptId: string, input: NewProjectScriptInput) => Promise<void>;
   onDeleteProjectScript: (scriptId: string) => Promise<void>;
   onToggleDiff: () => void;
+  onToggleBrowser: () => void;
   onCreateHandoff: (targetProvider: ProviderKind) => void;
   onNavigateToThread: (threadId: ThreadId) => void;
   onRenameThread: () => void;
@@ -504,7 +508,9 @@ export const ChatHeader = memo(function ChatHeader({
   showGitActions = true,
   showDiffToggle = true,
   diffOpen,
+  browserOpen,
   diffDisabledReason = null,
+  browserToggleShortcutLabel,
   surfaceMode = "single",
   isSidechat = false,
   environment = null,
@@ -516,6 +522,7 @@ export const ChatHeader = memo(function ChatHeader({
   onUpdateProjectScript,
   onDeleteProjectScript,
   onToggleDiff,
+  onToggleBrowser,
   onCreateHandoff,
   onNavigateToThread,
   onRenameThread,
@@ -856,16 +863,75 @@ export const ChatHeader = memo(function ChatHeader({
               />
             ) : null}
 
-            {!isDisposableThread && activeProjectName && showGitActions ? (
-              <GitActionsControl
-                gitCwd={gitCwd}
-                activeThreadId={activeThreadId}
-                hideQuickActionLabel={compact}
-              />
-            ) : null}
-            {diffToggleControl}
-          </>
-        )}
+          {!isDisposableThread && activeProjectName && showGitActions ? (
+            <GitActionsControl
+              gitCwd={gitCwd}
+              activeThreadId={activeThreadId}
+              hideQuickActionLabel={compact}
+            />
+          ) : null}
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Toggle
+                  className={cn(CHAT_HEADER_TOGGLE_CLASS_NAME, "!size-7 [&_svg]:mx-0")}
+                  pressed={browserOpen}
+                  onPressedChange={onToggleBrowser}
+                  aria-label="Toggle browser panel"
+                  variant="default"
+                  size="xs"
+                >
+                  <SurfaceChipIcon icon={GlobeIcon} className="size-4" />
+                </Toggle>
+              }
+            />
+            <TooltipPopup side="bottom">
+              {browserToggleShortcutLabel
+                ? `Toggle browser panel (${browserToggleShortcutLabel})`
+                : "Toggle browser panel"}
+            </TooltipPopup>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Toggle
+                  className={cn(
+                    CHAT_HEADER_TOGGLE_CLASS_NAME,
+                    showDiffTotals ? null : "!size-7 [&_svg,&_[data-slot=central-icon]]:mx-0",
+                  )}
+                  pressed={diffOpen}
+                  onPressedChange={onToggleDiff}
+                  aria-label="Toggle diff panel"
+                  variant="default"
+                  size="xs"
+                  disabled={!isGitRepo || (diffDisabledReason !== null && !diffOpen)}
+                >
+                  {showDiffTotals ? (
+                    <span className="inline-flex items-center gap-1">
+                      <span className="font-system-ui text-[length:var(--app-font-size-ui-sm,11px)] sm:text-[length:var(--app-font-size-ui-xs,10px)] font-normal tracking-normal tabular-nums text-success">
+                        +{diffTotals?.additions ?? 0}
+                      </span>
+                      <span className="font-system-ui text-[length:var(--app-font-size-ui-sm,11px)] sm:text-[length:var(--app-font-size-ui-xs,10px)] font-normal tracking-normal tabular-nums text-destructive">
+                        -{diffTotals?.deletions ?? 0}
+                      </span>
+                    </span>
+                  ) : null}
+                  <SurfaceChipIcon icon={PanelRightCloseIcon} className="size-4" />
+                </Toggle>
+              }
+            />
+            <TooltipPopup side="bottom">
+              {!isGitRepo
+                ? "Diff panel is unavailable because this project is not a git repository."
+                : diffDisabledReason && !diffOpen
+                  ? diffDisabledReason
+                  : diffToggleShortcutLabel
+                    ? `Toggle diff panel (${diffToggleShortcutLabel})`
+                    : "Toggle diff panel"}
+            </TooltipPopup>
+          </Tooltip>
+        </>
+      )}
       </div>
     </div>
   );

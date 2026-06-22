@@ -29,6 +29,10 @@ run_command() {
       echo "==> Building desktop app DMG (macOS arm64)..."
       bun run dist:desktop:dmg:arm64
       ;;
+    exe)
+      echo "==> Building desktop app EXE (Windows x64)..."
+      bun run dist:desktop:win
+      ;;
     help)
       echo "Usage: ./run.sh <command>"
       echo ""
@@ -38,6 +42,7 @@ run_command() {
       echo "  build     Build all packages for production"
       echo "  start     Start production server (build first)"
       echo "  dmg       Build macOS desktop DMG (arm64)"
+      echo "  exe       Build Windows desktop EXE (x64, cross-compiled)"
       echo "  prod      Build + Start (one shot)"
       ;;
     *)
@@ -51,7 +56,7 @@ run_command() {
 
 if [[ $# -eq 0 ]]; then
   echo "Select an option:"
-  select choice in install dev build start dmg prod "q to quit"; do
+  select choice in install dev build start dmg exe prod "q to quit"; do
     if [[ -n "${choice:-}" ]]; then
       if [[ "$choice" == "q" ]]; then
         echo "Bye."

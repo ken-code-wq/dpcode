@@ -427,10 +427,15 @@ export function KanbanNewTaskDialog({
               assistantSelections={composerAssistantSelections}
               fileComments={composerFileComments}
               images={composerImages}
+              files={[]}
+              browserContexts={[]}
               nonPersistedImageIdSet={nonPersistedComposerImageIdSet}
               onExpandImage={setExpandedImage}
+              onExpandBrowserContext={() => {}}
               onRemoveAssistantSelections={clearComposerAssistantSelections}
               onRemoveFileComments={clearComposerFileComments}
+              onRemoveBrowserContext={() => {}}
+              onRemoveFile={() => {}}
               onRemoveImage={removeComposerImage}
             />
             <ComposerPromptEditor
