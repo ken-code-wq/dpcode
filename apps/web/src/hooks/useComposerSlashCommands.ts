@@ -765,6 +765,27 @@ export function useComposerSlashCommands(input: {
         return;
       }
 
+      if (item.command === "automation") {
+        const replacement = "/automation ";
+        const replacementRangeEnd = extendReplacementRangeForTrailingSpace(
+          snapshot.value,
+          trigger.rangeEnd,
+          replacement,
+        );
+        const applied = editorActions.applyPromptReplacement(
+          trigger.rangeStart,
+          replacementRangeEnd,
+          replacement,
+          { expectedText: snapshot.value.slice(trigger.rangeStart, replacementRangeEnd) },
+        );
+        if (wasPromptReplacementApplied(applied)) {
+          editorActions.setComposerHighlightedItemId(null);
+          editorActions.scheduleComposerFocus();
+        }
+        return;
+      }
+
+
       if (item.command === "clear") {
         const applied = clearSlashCommandFromComposer();
         if (wasPromptReplacementApplied(applied)) {

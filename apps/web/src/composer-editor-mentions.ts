@@ -1,4 +1,4 @@
-import { isBuiltInComposerSlashCommand } from "./composerSlashCommands";
+import { isBuiltInComposerSlashCommand, type ComposerSlashCommand } from "./composerSlashCommands";
 import {
   INLINE_TERMINAL_CONTEXT_PLACEHOLDER,
   type TerminalContextDraft,
@@ -38,6 +38,10 @@ export type ComposerPromptSegment =
       prefix?: string;
     }
   | {
+      type: "slash-command";
+      command: ComposerSlashCommand;
+    }
+  | {
       type: "terminal-context";
       context: TerminalContextDraft | null;
     }
@@ -59,6 +63,9 @@ export type ComposerPromptSegment =
 
 const SKILL_TOKEN_REGEX = /(^|\s)([$/])([a-zA-Z][a-zA-Z0-9_:-]*)(?=\s)/g;
 const DISPLAY_SKILL_TOKEN_REGEX = /(^|\s)([$/])([a-zA-Z][a-zA-Z0-9_:-]*)(?=\s|$)/g;
+const SLASH_COMMAND_CHIP_TOKEN_REGEX = /(^|\s)\/([a-zA-Z][a-zA-Z0-9_-]*)(?=\s)/i;
+
+const COMPOSER_SLASH_COMMAND_CHIP_NAMES = new Set<ComposerSlashCommand>(["automation"]);
 
 // While typing (composer) a URL only becomes a chip once a delimiter follows it,
 // mirroring how skills/mentions wait for a trailing boundary. For read-only
@@ -128,6 +135,12 @@ type InlineTokenMatch =
       end: number;
     }
   | {
+      kind: "slash-command";
+      command: ComposerSlashCommand;
+      start: number;
+      end: number;
+    }
+  | {
       kind: "agent-mention";
       alias: string;
       color: string;
@@ -141,10 +154,31 @@ type InlineTokenMatch =
       end: number;
     };
 
+function isComposerSlashCommandChipName(value: string): value is ComposerSlashCommand {
+  return isBuiltInComposerSlashCommand(value) && COMPOSER_SLASH_COMMAND_CHIP_NAMES.has(value);
+}
+
+export function matchComposerSlashCommandChipToken(
+  text: string,
+): { command: ComposerSlashCommand; start: number; end: number } | null {
+  const match = SLASH_COMMAND_CHIP_TOKEN_REGEX.exec(text);
+  if (!match) {
+    return null;
+  }
+  const whitespace = match[1] ?? "";
+  const command = (match[2] ?? "").toLowerCase();
+  if (!isComposerSlashCommandChipName(command)) {
+    return null;
+  }
+  const start = (match.index ?? 0) + whitespace.length;
+  return { command, start, end: start + command.length + 1 };
+}
+
 function collectInlineTokenMatches(
   text: string,
   options: {
     includeTrailingTokenAtEnd: boolean;
+    includeSlashCommandChips: boolean;
   },
 ): InlineTokenMatch[] {
   const matches: InlineTokenMatch[] = [];
@@ -237,10 +271,20 @@ function collectInlineTokenMatches(
     // Skip if this overlaps with an agent mention or sits inside a URL
     if (isInsideAgentMention(start) || isReserved(start)) continue;
 
-    // Skip built-in slash commands so `/clear`, `/plan` etc. stay as plain text.
-    if (name.length > 0 && !(skillPrefix === "/" && isBuiltInComposerSlashCommand(name))) {
-      matches.push({ kind: "skill", value: name, skillPrefix, start, end });
+    if (name.length === 0) {
+      continue;
     }
+
+    const normalizedName = name.toLowerCase();
+    if (skillPrefix === "/" && isBuiltInComposerSlashCommand(normalizedName)) {
+      if (options.includeSlashCommandChips && isComposerSlashCommandChipName(normalizedName)) {
+        matches.push({ kind: "slash-command", command: normalizedName, start, end });
+      }
+      // Skip the other built-in slash commands so `/clear`, `/plan` etc. stay as plain text.
+      continue;
+    }
+
+    matches.push({ kind: "skill", value: name, skillPrefix, start, end });
   }
 
   matches.sort((a, b) => a.start - b.start);
@@ -251,6 +295,7 @@ function splitTextIntoPromptSegments(
   text: string,
   options: {
     includeTrailingTokenAtEnd: boolean;
+    includeSlashCommandChips: boolean;
     mentionReferences?: ReadonlyArray<ProviderMentionReference>;
   },
 ): ComposerPromptSegment[] {
@@ -289,6 +334,8 @@ function splitTextIntoPromptSegments(
           ? { type: "mention", path: match.value, kind: "plugin" }
           : { type: "mention", path: match.value },
       );
+    } else if (match.kind === "slash-command") {
+      segments.push({ type: "slash-command", command: match.command });
     } else {
       const skillSegment: ComposerPromptSegment = match.skillPrefix
         ? { type: "skill", name: match.value, prefix: match.skillPrefix }
@@ -312,6 +359,7 @@ export function splitPromptIntoDisplaySegments(
 ): ComposerPromptSegment[] {
   return splitTextIntoPromptSegments(prompt, {
     includeTrailingTokenAtEnd: true,
+    includeSlashCommandChips: false,
     mentionReferences,
   });
 }
@@ -355,6 +403,7 @@ export function splitPromptIntoComposerSegments(
       segments.push(
         ...splitTextIntoPromptSegments(text.slice(textCursor), {
           includeTrailingTokenAtEnd: false,
+          includeSlashCommandChips: true,
           mentionReferences,
         }),
       );

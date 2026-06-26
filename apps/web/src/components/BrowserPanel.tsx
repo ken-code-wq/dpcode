@@ -2826,6 +2826,9 @@ export function BrowserPanel({
   const composerDraftImageCount = useComposerDraftStore(
     (store) => store.draftsByThreadId[threadId]?.images.length ?? 0,
   );
+  const composerDraftFileCount = useComposerDraftStore(
+    (store) => store.draftsByThreadId[threadId]?.files.length ?? 0,
+  );
   const composerDraftAssistantSelectionCount = useComposerDraftStore(
     (store) => store.draftsByThreadId[threadId]?.assistantSelections.length ?? 0,
   );
@@ -5212,7 +5215,8 @@ export function BrowserPanel({
       return;
     }
 
-    const attachmentCount = composerDraftImageCount + composerDraftAssistantSelectionCount;
+    const attachmentCount =
+      composerDraftImageCount + composerDraftFileCount + composerDraftAssistantSelectionCount;
     if (attachmentCount >= PROVIDER_SEND_TURN_MAX_ATTACHMENTS) {
       setLocalError(
         `You can attach up to ${PROVIDER_SEND_TURN_MAX_ATTACHMENTS} references per message.`,
@@ -5241,6 +5245,7 @@ export function BrowserPanel({
     addComposerDraftImage,
     api,
     composerDraftAssistantSelectionCount,
+    composerDraftFileCount,
     composerDraftImageCount,
     ensureLiveRuntime,
     runBrowserAction,

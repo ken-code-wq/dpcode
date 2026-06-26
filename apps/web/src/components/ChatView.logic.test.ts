@@ -15,6 +15,7 @@ import {
   resolveActiveTurnLiveDiffState,
   resolveCommittedProviderModel,
   resolveDefaultEnvironmentPanelOpen,
+  resolveEnvironmentPanelOpen,
   resolveEnvironmentPanelVisible,
   resolveProjectScriptTerminalTarget,
   resolveRuntimeModeAfterApprovalDecision,
@@ -257,16 +258,18 @@ describe("environment panel visibility", () => {
         environmentEnabled: true,
         isCenteredEmptyLanding: false,
         isTerminalPrimarySurface: false,
+        isConstrainedChatLayout: false,
       }),
     ).toBe(true);
   });
 
-  it("keeps empty landing and terminal-primary surfaces closed by default", () => {
+  it("keeps empty landing, terminal-primary, and constrained layouts closed by default", () => {
     expect(
       resolveDefaultEnvironmentPanelOpen({
         environmentEnabled: true,
         isCenteredEmptyLanding: true,
         isTerminalPrimarySurface: false,
+        isConstrainedChatLayout: false,
       }),
     ).toBe(false);
     expect(
@@ -274,6 +277,63 @@ describe("environment panel visibility", () => {
         environmentEnabled: true,
         isCenteredEmptyLanding: false,
         isTerminalPrimarySurface: true,
+        isConstrainedChatLayout: false,
+      }),
+    ).toBe(false);
+    expect(
+      resolveDefaultEnvironmentPanelOpen({
+        environmentEnabled: true,
+        isCenteredEmptyLanding: false,
+        isTerminalPrimarySurface: false,
+        isConstrainedChatLayout: true,
+      }),
+    ).toBe(false);
+  });
+
+  it("lets a manual preference override the default while switching chats", () => {
+    expect(
+      resolveEnvironmentPanelOpen({
+        defaultOpen: true,
+        actionDismissed: false,
+        userPreferenceOpen: null,
+      }),
+    ).toBe(true);
+    expect(
+      resolveEnvironmentPanelOpen({
+        defaultOpen: true,
+        actionDismissed: false,
+        userPreferenceOpen: false,
+      }),
+    ).toBe(false);
+    expect(
+      resolveEnvironmentPanelOpen({
+        defaultOpen: false,
+        actionDismissed: false,
+        userPreferenceOpen: true,
+      }),
+    ).toBe(true);
+  });
+
+  it("treats action dismissals as transient closes instead of stored preferences", () => {
+    expect(
+      resolveEnvironmentPanelOpen({
+        defaultOpen: true,
+        actionDismissed: true,
+        userPreferenceOpen: null,
+      }),
+    ).toBe(false);
+    expect(
+      resolveEnvironmentPanelOpen({
+        defaultOpen: true,
+        actionDismissed: false,
+        userPreferenceOpen: null,
+      }),
+    ).toBe(true);
+    expect(
+      resolveEnvironmentPanelOpen({
+        defaultOpen: false,
+        actionDismissed: true,
+        userPreferenceOpen: true,
       }),
     ).toBe(false);
   });
@@ -356,6 +416,36 @@ describe("resolveActiveTurnLiveDiffState", () => {
     });
   });
 
+  it("treats an empty active turn diff summary as authoritative over tool-log file hints", () => {
+    const activeTurnId = TurnId.makeUnsafe("turn-active");
+
+    expect(
+      resolveActiveTurnLiveDiffState({
+        latestTurnId: activeTurnId,
+        turnDiffSummaries: [
+          {
+            turnId: activeTurnId,
+            completedAt: "2026-06-13T10:01:00.000Z",
+            files: [],
+          },
+        ],
+        workLogEntries: [
+          {
+            turnId: activeTurnId,
+            itemType: "file_change",
+            changedFiles: ["src/a.ts"],
+          },
+        ],
+      }),
+    ).toEqual({
+      turnId: null,
+      fileCount: 0,
+      additions: 0,
+      deletions: 0,
+      hasChanges: false,
+    });
+  });
+
   it("falls back to in-turn file-edit work before the diff summary lands", () => {
     const activeTurnId = TurnId.makeUnsafe("turn-active");
 
@@ -376,7 +466,7 @@ describe("resolveActiveTurnLiveDiffState", () => {
         ],
       }),
     ).toEqual({
-      turnId: activeTurnId,
+      turnId: null,
       fileCount: 2,
       additions: 0,
       deletions: 0,
@@ -394,7 +484,7 @@ describe("resolveActiveTurnLiveDiffState", () => {
         workLogEntries: [{ turnId: activeTurnId, itemType: "file_change" }],
       }),
     ).toEqual({
-      turnId: activeTurnId,
+      turnId: null,
       fileCount: null,
       additions: 0,
       deletions: 0,

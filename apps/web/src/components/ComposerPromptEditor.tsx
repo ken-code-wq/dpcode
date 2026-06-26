@@ -54,13 +54,11 @@ import {
 } from "~/composer-logic";
 import {
   matchComposerLinkToken,
+  matchComposerSlashCommandChipToken,
   splitPromptIntoComposerSegments,
 } from "~/composer-editor-mentions";
 import { parseBareComposerLink } from "~/lib/linkChips";
-import {
-  INLINE_TERMINAL_CONTEXT_PLACEHOLDER,
-  type TerminalContextDraft,
-} from "~/lib/terminalContext";
+import { type TerminalContextDraft } from "~/lib/terminalContext";
 import { shouldCollapsePastedText } from "~/lib/composerPastedText";
 import type { ProviderMentionReference } from "@t3tools/contracts";
 import { cn } from "~/lib/utils";
@@ -73,12 +71,14 @@ import {
 import {
   ComposerMentionNode,
   ComposerSkillNode,
+  ComposerSlashCommandNode,
   ComposerAgentMentionNode,
   ComposerTerminalContextNode,
   ComposerBrowserContextNode,
   ComposerLinkNode,
   $createComposerMentionNode,
   $createComposerSkillNode,
+  $createComposerSlashCommandNode,
   $createComposerAgentMentionNode,
   $createComposerTerminalContextNode,
   $createComposerBrowserContextNode,
@@ -233,6 +233,7 @@ function getAbsoluteOffsetForPoint(node: LexicalNode, pointOffset: number): numb
     if (
       node instanceof ComposerMentionNode ||
       node instanceof ComposerSkillNode ||
+      node instanceof ComposerSlashCommandNode ||
       node instanceof ComposerAgentMentionNode
     ) {
       return getAbsoluteOffsetForInlineTokenPoint(node, offset, pointOffset);
@@ -285,6 +286,7 @@ function getExpandedAbsoluteOffsetForPoint(node: LexicalNode, pointOffset: numbe
     if (
       node instanceof ComposerMentionNode ||
       node instanceof ComposerSkillNode ||
+      node instanceof ComposerSlashCommandNode ||
       node instanceof ComposerAgentMentionNode
     ) {
       return getExpandedAbsoluteOffsetForInlineTokenPoint(node as ComposerInlineTokenNode, offset, pointOffset);
@@ -317,6 +319,7 @@ function findSelectionPointAtOffset(
   if (
     node instanceof ComposerMentionNode ||
     node instanceof ComposerSkillNode ||
+    node instanceof ComposerSlashCommandNode ||
     node instanceof ComposerAgentMentionNode ||
     node instanceof ComposerLinkNode ||
     node instanceof ComposerTerminalContextNode
@@ -455,6 +458,10 @@ function $setComposerEditorPrompt(
     if (segment.type === "skill") {
       const prefixedName = `${segment.prefix ?? "$"}${segment.name}`;
       paragraph.append($createComposerSkillNode(prefixedName));
+      continue;
+    }
+    if (segment.type === "slash-command") {
+      paragraph.append($createComposerSlashCommandNode(segment.command));
       continue;
     }
     if (segment.type === "terminal-context") {
@@ -755,6 +762,27 @@ function ComposerInlineTokenBackspacePlugin() {
       COMMAND_PRIORITY_HIGH,
     );
   }, [editor, onRemoveTerminalContext]);
+
+  return null;
+}
+
+function ComposerSlashCommandTransformPlugin() {
+  const [editor] = useLexicalComposerContext();
+
+  useEffect(() => {
+    return editor.registerNodeTransform(TextNode, (node) => {
+      if (isComposerInlineTokenNode(node)) {
+        return;
+      }
+      const match = matchComposerSlashCommandChipToken(node.getTextContent());
+      if (!match) {
+        return;
+      }
+      const splitNodes = node.splitText(match.start, match.end);
+      const commandNode = match.start === 0 ? splitNodes[0] : splitNodes[1];
+      commandNode?.replace($createComposerSlashCommandNode(match.command));
+    });
+  }, [editor]);
 
   return null;
 }
@@ -1139,6 +1167,7 @@ function ComposerPromptEditorInner({
         <ComposerInlineTokenArrowPlugin />
         <ComposerInlineTokenSelectionNormalizePlugin />
         <ComposerInlineTokenBackspacePlugin />
+        <ComposerSlashCommandTransformPlugin />
         <ComposerLinkTransformPlugin />
         <ComposerLinkPastePlugin />
         {onCollapsePastedText ? (

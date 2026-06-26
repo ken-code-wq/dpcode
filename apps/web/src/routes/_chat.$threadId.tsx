@@ -128,6 +128,7 @@ import {
   createSidebarThreadSummariesSelector,
   createThreadExistsSelector,
   createThreadProjectIdSelector,
+  createThreadWorkspaceMetadataSelector,
 } from "../storeSelectors";
 import { sortThreadsForSidebar } from "../components/Sidebar.logic";
 import { Button } from "../components/ui/button";
@@ -141,6 +142,7 @@ import {
   DialogTitle,
 } from "../components/ui/dialog";
 import {
+  resolveFilePreviewWorkspaceRoot,
   resolveRoutePanelBootstrap,
   resolveSplitPaneCloseDecision,
   resolveSplitPaneMaximizeDecision,
@@ -1436,12 +1438,22 @@ function SingleChatSurface(props: {
   const activeProject = useStore(
     useMemo(() => createProjectSelector(props.projectId), [props.projectId]),
   );
-  const workspaceRoot = activeProject?.cwd ?? null;
+  const threadWorkspaceMetadata = useStore(
+    useMemo(() => createThreadWorkspaceMetadataSelector(props.threadId), [props.threadId]),
+  );
+  const draftThread = useComposerDraftStore(
+    (store) => store.draftThreadsByThreadId[props.threadId] ?? null,
+  );
   const rawEditorFilePath = props.search.editorFilePath ?? null;
   const selectedEditorFilePath =
     rawEditorFilePath !== null && isWorkspaceRelativePathSafe(rawEditorFilePath)
       ? rawEditorFilePath
       : null;
+  const workspaceRoot = resolveFilePreviewWorkspaceRoot({
+    projectCwd: activeProject?.cwd ?? null,
+    threadEnvMode: threadWorkspaceMetadata.envMode ?? draftThread?.envMode ?? null,
+    threadWorktreePath: threadWorkspaceMetadata.worktreePath ?? draftThread?.worktreePath ?? null,
+  });
   const projects = useStore((store) => store.projects);
   const { settings: appSettings } = useAppSettings();
   const { handleNewThread } = useHandleNewThread();

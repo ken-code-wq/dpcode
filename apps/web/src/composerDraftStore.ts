@@ -12,6 +12,8 @@ import {
   GROK_REASONING_EFFORT_OPTIONS,
   type GrokReasoningEffort,
   type ModelSlug,
+  OrchestrationProposedPlanId,
+  type OrchestrationLatestTurn,
   type PiThinkingLevel,
   ModelSelection,
   OrchestrationThreadPullRequest,
@@ -175,9 +177,16 @@ export interface QueuedComposerChatTurn {
   selectedPromptEffort: string | null;
   modelSelection: ModelSelection;
   providerOptionsForDispatch?: ProviderStartOptions | undefined;
+  sourceProposedPlan?: NonNullable<OrchestrationLatestTurn["sourceProposedPlan"]> | undefined;
   runtimeMode: RuntimeMode;
   interactionMode: ProviderInteractionMode;
   envMode: DraftThreadEnvMode;
+}
+
+export interface RestoredComposerSourceProposedPlan {
+  threadId: ThreadId;
+  restoredPrompt: string;
+  sourceProposedPlan: NonNullable<OrchestrationLatestTurn["sourceProposedPlan"]>;
 }
 
 export interface QueuedComposerPlanFollowUp {
@@ -241,6 +250,17 @@ const PersistedPastedTextDraft = Schema.Struct({
 });
 type PersistedPastedTextDraft = typeof PersistedPastedTextDraft.Type;
 
+const PersistedSourceProposedPlanReference = Schema.Struct({
+  threadId: ThreadId,
+  planId: OrchestrationProposedPlanId,
+});
+
+const PersistedRestoredSourceProposedPlan = Schema.Struct({
+  threadId: ThreadId,
+  restoredPrompt: Schema.String,
+  sourceProposedPlan: PersistedSourceProposedPlanReference,
+});
+
 const PersistedQueuedComposerChatTurn = Schema.Struct({
   id: Schema.String,
   kind: Schema.Literal("chat"),
@@ -268,6 +288,7 @@ const PersistedQueuedComposerChatTurn = Schema.Struct({
   selectedPromptEffort: Schema.NullOr(Schema.String),
   modelSelection: ModelSelection,
   providerOptionsForDispatch: Schema.optionalKey(ProviderStartOptions),
+  sourceProposedPlan: Schema.optionalKey(PersistedSourceProposedPlanReference),
   runtimeMode: RuntimeMode,
   interactionMode: ProviderInteractionMode,
   envMode: DraftThreadEnvModeSchema,
@@ -315,6 +336,7 @@ const PersistedComposerThreadDraftState = Schema.Struct({
   skills: Schema.optionalKey(Schema.Array(ProviderSkillReference)),
   mentions: Schema.optionalKey(Schema.Array(ProviderMentionReference)),
   queuedTurns: Schema.optionalKey(Schema.Array(PersistedQueuedComposerTurn)),
+  restoredSourceProposedPlan: Schema.optionalKey(PersistedRestoredSourceProposedPlan),
   modelSelectionByProvider: Schema.optionalKey(
     Schema.Record(ProviderKind, Schema.optionalKey(ModelSelection)),
   ),
@@ -410,6 +432,7 @@ export interface ComposerThreadDraftState {
   skills: ProviderSkillReference[];
   mentions: ProviderMentionReference[];
   queuedTurns: QueuedComposerTurn[];
+  restoredSourceProposedPlan?: RestoredComposerSourceProposedPlan | null;
   modelSelectionByProvider: Partial<Record<ProviderKind, ModelSelection>>;
   activeProvider: ProviderKind | null;
   runtimeMode: RuntimeMode | null;
@@ -569,7 +592,14 @@ export interface ComposerDraftStoreState {
     attachments: PersistedComposerImageAttachment[],
   ) => void;
   copyTransferableComposerState: (sourceThreadId: ThreadId, targetThreadId: ThreadId) => void;
-  clearComposerContent: (threadId: ThreadId) => void;
+  setRestoredSourceProposedPlan: (
+    threadId: ThreadId,
+    source: RestoredComposerSourceProposedPlan | null,
+  ) => void;
+  clearComposerContent: (
+    threadId: ThreadId,
+    options?: { readonly preservePreviewUrls?: boolean },
+  ) => void;
 }
 
 export interface EffectiveComposerModelState {
@@ -693,6 +723,7 @@ const EMPTY_THREAD_DRAFT = Object.freeze<ComposerThreadDraftState>({
   skills: EMPTY_SKILLS,
   mentions: EMPTY_MENTIONS,
   queuedTurns: EMPTY_QUEUED_TURNS,
+  restoredSourceProposedPlan: null,
   modelSelectionByProvider: EMPTY_MODEL_SELECTION_BY_PROVIDER,
   activeProvider: null,
   runtimeMode: null,
@@ -715,6 +746,7 @@ function createEmptyThreadDraft(): ComposerThreadDraftState {
     skills: [],
     mentions: [],
     queuedTurns: [],
+    restoredSourceProposedPlan: null,
     modelSelectionByProvider: {},
     activeProvider: null,
     runtimeMode: null,
@@ -983,6 +1015,7 @@ function buildTransferredComposerDraft(input: {
     pastedTexts: normalizePastedTexts(sourceDraft.pastedTexts),
     skills: [...sourceDraft.skills],
     mentions: [...sourceDraft.mentions],
+    restoredSourceProposedPlan: null,
   };
 }
 
@@ -1001,6 +1034,7 @@ function shouldRemoveDraft(draft: ComposerThreadDraftState): boolean {
     draft.skills.length === 0 &&
     draft.mentions.length === 0 &&
     draft.queuedTurns.length === 0 &&
+    draft.restoredSourceProposedPlan == null &&
     Object.keys(draft.modelSelectionByProvider).length === 0 &&
     draft.activeProvider === null &&
     draft.runtimeMode === null &&
@@ -1599,6 +1633,15 @@ function revokeDraftPreviewUrls(draft: ComposerThreadDraftState | undefined): vo
   }
 }
 
+function revokeDraftComposerImagePreviewUrls(draft: ComposerThreadDraftState | undefined): void {
+  if (!draft) {
+    return;
+  }
+  for (const image of draft.images) {
+    revokeObjectPreviewUrl(image.previewUrl);
+  }
+}
+
 function normalizePersistedAttachment(value: unknown): PersistedComposerImageAttachment | null {
   if (!value || typeof value !== "object") {
     return null;
@@ -1915,6 +1958,11 @@ function normalizePersistedQueuedTurns(
     )
       ? candidate.providerOptionsForDispatch
       : undefined;
+    const sourceProposedPlan = Schema.is(PersistedSourceProposedPlanReference)(
+      candidate.sourceProposedPlan,
+    )
+      ? candidate.sourceProposedPlan
+      : undefined;
     const runtimeMode =
       candidate.runtimeMode === "approval-required" || candidate.runtimeMode === "full-access"
         ? candidate.runtimeMode
@@ -2002,6 +2050,7 @@ function normalizePersistedQueuedTurns(
         selectedPromptEffort,
         modelSelection,
         ...(providerOptionsForDispatch ? { providerOptionsForDispatch } : {}),
+        ...(sourceProposedPlan ? { sourceProposedPlan } : {}),
         runtimeMode,
         interactionMode,
         envMode,
@@ -2289,6 +2338,11 @@ function normalizePersistedDraftsByThreadId(
     }
 
     const normalizedQueuedTurns = queuedTurns ?? [];
+    const restoredSourceProposedPlan = Schema.is(PersistedRestoredSourceProposedPlan)(
+      draftCandidate.restoredSourceProposedPlan,
+    )
+      ? draftCandidate.restoredSourceProposedPlan
+      : null;
     const hasModelData =
       Object.keys(modelSelectionByProvider).length > 0 || activeProvider !== null;
     const hasQueuedTurns = normalizedQueuedTurns.length > 0;
@@ -2303,6 +2357,7 @@ function normalizePersistedDraftsByThreadId(
       pastedTexts.length === 0 &&
       !hasReferenceData &&
       !hasQueuedTurns &&
+      restoredSourceProposedPlan === null &&
       !hasModelData &&
       !runtimeMode &&
       !interactionMode
@@ -2321,6 +2376,7 @@ function normalizePersistedDraftsByThreadId(
       ...(skills.length > 0 ? { skills } : {}),
       ...(mentions.length > 0 ? { mentions } : {}),
       ...(hasQueuedTurns ? { queuedTurns: normalizedQueuedTurns } : {}),
+      ...(restoredSourceProposedPlan ? { restoredSourceProposedPlan } : {}),
       ...(hasModelData ? { modelSelectionByProvider, activeProvider } : {}),
       ...(runtimeMode ? { runtimeMode } : {}),
       ...(interactionMode ? { interactionMode } : {}),
@@ -2430,6 +2486,9 @@ function partializeComposerDraftStoreState(
           ...(queuedTurn.providerOptionsForDispatch
             ? { providerOptionsForDispatch: queuedTurn.providerOptionsForDispatch }
             : {}),
+          ...(queuedTurn.sourceProposedPlan
+            ? { sourceProposedPlan: queuedTurn.sourceProposedPlan }
+            : {}),
           runtimeMode: queuedTurn.runtimeMode,
           interactionMode: queuedTurn.interactionMode,
           envMode: queuedTurn.envMode,
@@ -2467,6 +2526,7 @@ function partializeComposerDraftStoreState(
       draft.pastedTexts.length === 0 &&
       !hasReferenceData &&
       !hasQueuedTurns &&
+      draft.restoredSourceProposedPlan == null &&
       !hasModelData &&
       draft.runtimeMode === null &&
       draft.interactionMode === null
@@ -2536,6 +2596,9 @@ function partializeComposerDraftStoreState(
       ...(draft.skills.length > 0 ? { skills: [...draft.skills] } : {}),
       ...(draft.mentions.length > 0 ? { mentions: [...draft.mentions] } : {}),
       ...(hasQueuedTurns ? { queuedTurns: persistedQueuedTurns } : {}),
+      ...(draft.restoredSourceProposedPlan
+        ? { restoredSourceProposedPlan: draft.restoredSourceProposedPlan }
+        : {}),
       ...(hasModelData
         ? {
             modelSelectionByProvider: draft.modelSelectionByProvider,
@@ -2796,6 +2859,7 @@ function toHydratedThreadDraft(
     skills: [...(persistedDraft.skills ?? [])],
     mentions: [...(persistedDraft.mentions ?? [])],
     queuedTurns: hydrateQueuedTurnsFromPersisted(threadId, persistedDraft.queuedTurns),
+    restoredSourceProposedPlan: persistedDraft.restoredSourceProposedPlan ?? null,
     modelSelectionByProvider,
     activeProvider,
     runtimeMode: persistedDraft.runtimeMode ?? null,
@@ -4339,9 +4403,31 @@ export const useComposerDraftStore = create<ComposerDraftStoreState>()(
           return { draftsByThreadId: nextDraftsByThreadId };
         });
       },
-      clearComposerContent: (threadId) => {
+      setRestoredSourceProposedPlan: (threadId, source) => {
         if (threadId.length === 0) {
           return;
+        }
+        set((state) => {
+          const current = state.draftsByThreadId[threadId] ?? createEmptyThreadDraft();
+          const nextDraft: ComposerThreadDraftState = {
+            ...current,
+            restoredSourceProposedPlan: source,
+          };
+          const nextDraftsByThreadId = { ...state.draftsByThreadId };
+          if (shouldRemoveDraft(nextDraft)) {
+            delete nextDraftsByThreadId[threadId];
+          } else {
+            nextDraftsByThreadId[threadId] = nextDraft;
+          }
+          return { draftsByThreadId: nextDraftsByThreadId };
+        });
+      },
+      clearComposerContent: (threadId, options) => {
+        if (threadId.length === 0) {
+          return;
+        }
+        if (options?.preservePreviewUrls !== true) {
+          revokeDraftComposerImagePreviewUrls(get().draftsByThreadId[threadId]);
         }
         set((state) => {
           const current = state.draftsByThreadId[threadId];
@@ -4362,6 +4448,7 @@ export const useComposerDraftStore = create<ComposerDraftStoreState>()(
             pastedTexts: [],
             skills: [],
             mentions: [],
+            restoredSourceProposedPlan: null,
           };
           const nextDraftsByThreadId = { ...state.draftsByThreadId };
           if (shouldRemoveDraft(nextDraft)) {

@@ -365,12 +365,18 @@ export const ChatAttachment = Schema.Union([
   ChatAssistantSelectionAttachment,
 ]);
 export type ChatAttachment = typeof ChatAttachment.Type;
+const ChatAttachmentList = Schema.Array(ChatAttachment).check(
+  Schema.isMaxLength(PROVIDER_SEND_TURN_MAX_ATTACHMENTS),
+);
 const UploadChatAttachment = Schema.Union([
   UploadChatImageAttachment,
   UploadChatFileAttachment,
   UploadChatAssistantSelectionAttachment,
 ]);
 export type UploadChatAttachment = typeof UploadChatAttachment.Type;
+const UploadChatAttachmentList = Schema.Array(UploadChatAttachment).check(
+  Schema.isMaxLength(PROVIDER_SEND_TURN_MAX_ATTACHMENTS),
+);
 
 export const ProjectScriptIcon = Schema.Literals([
   "play",
@@ -1059,7 +1065,7 @@ export const ThreadTurnStartCommand = Schema.Struct({
     messageId: MessageId,
     role: Schema.Literal("user"),
     text: Schema.String,
-    attachments: Schema.Array(ChatAttachment),
+    attachments: ChatAttachmentList,
     skills: Schema.optional(Schema.Array(ProviderSkillReference)),
     mentions: Schema.optional(Schema.Array(ProviderMentionReference)),
   }),
@@ -1087,7 +1093,7 @@ const ClientThreadTurnStartCommand = Schema.Struct({
     messageId: MessageId,
     role: Schema.Literal("user"),
     text: Schema.String,
-    attachments: Schema.Array(UploadChatAttachment),
+    attachments: UploadChatAttachmentList,
     skills: Schema.optional(Schema.Array(ProviderSkillReference)),
     mentions: Schema.optional(Schema.Array(ProviderMentionReference)),
   }),
